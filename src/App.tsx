@@ -1,54 +1,69 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { DashboardLayout } from './components/DashboardLayout'
+import { WarehouseFullBackgroundScene } from './components/WarehouseFullBackgroundScene'
+import { LoginForm } from './components/LoginForm'
+import { BottomCurvedFooter } from './components/BottomCurvedFooter'
+import { WiproLoader } from './components/WiproLoader'
+import { useTheme } from './context/ThemeContext'
+import wiproLogo from './assets/wipro_new_logo.svg'
+import wiproLogoWhite from './assets/wipro_new_logo_white.svg'
 
-export default function App() {
-  const [count, setCount] = useState(0)
+export const App: React.FC = () => {
+  const [view, setView] = useState<'login' | 'dashboard'>('login')
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const { theme } = useTheme()
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoading(false)
+    }, 850)
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (isInitialLoading) {
+    return <WiproLoader />
+  }
+
+  if (view === 'dashboard') {
+    return (
+      <DashboardLayout
+        onLogout={() => {
+          setView('login')
+        }}
+      />
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6">
-      <div className="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-xl text-center space-y-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-2">
-          <svg
-            className="w-8 h-8"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M13 10V3L4 14h7v7l9-11h-7z"
-            />
-          </svg>
-        </div>
+    <div className="h-screen max-h-screen w-full bg-[#F6F5F1] dark:bg-[#121212] text-[#171717] dark:text-[#EDEDED] flex flex-col justify-between relative select-none overflow-hidden">
+      <WarehouseFullBackgroundScene />
 
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Vite + React + Tailwind CSS
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            RFID Asset Management is ready for development.
-          </p>
+      <header className="relative z-20 px-4 sm:px-8 lg:px-14 pt-3 sm:pt-4 pb-1 flex items-center justify-between shrink-0">
+        <div className="px-1 py-1 flex items-center">
+          <img
+            src={theme === 'dark' ? wiproLogoWhite : wiproLogo}
+            alt="Wipro"
+            className="h-8 sm:h-9 w-auto object-contain"
+            style={{ maxWidth: '160px' }}
+          />
         </div>
+      </header>
 
-        <div className="flex flex-col items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setCount((c) => c + 1)}
-            className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-slate-800"
-          >
-            Count is {count}
-          </button>
-          <span className="text-xs text-slate-500">
-            Click to test interactive state
-          </span>
+      <main className="relative z-10 flex-1 min-h-0 flex items-center justify-center lg:justify-end px-4 sm:px-8 lg:px-16 xl:px-24 py-1">
+        <div className="w-full max-w-[420px] sm:max-w-[460px] my-auto">
+          <LoginForm
+            onLoginSuccess={() => {
+              setView('dashboard')
+            }}
+          />
         </div>
+      </main>
 
-        <div className="pt-4 border-t border-slate-700/60 text-xs text-slate-400">
-          Edit <code className="text-indigo-300 bg-slate-900/60 px-1.5 py-0.5 rounded">src/App.tsx</code> to start building your application.
-        </div>
+      <div className="relative z-20 shrink-0">
+        <BottomCurvedFooter />
       </div>
     </div>
   )
 }
+
+export default App

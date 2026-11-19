@@ -1,1 +1,71 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-app: #F6F5F1;
+  --bg-content: #FFFFFF;
+  --bg-card: #F5F3EE;
+  --bg-card-secondary: #FAF9F6;
+  --border-subtle: #EAE7DF;
+  --text-primary: #171717;
+  --text-secondary: #666666;
+  --text-muted: #99958D;
+  --accent-orange: #F5A23A;
+  --nav-active: #EDEAE2;
+  --success: #5D9273;
+  --warning: #E9A23B;
+  --danger: #C75A54;
+}
+
+html.dark {
+  --bg-app: #121212;
+  --bg-content: #1C1C1C;
+  --bg-card: #242424;
+  --bg-card-secondary: #2A2A2A;
+  --border-subtle: #2E2E2E;
+  --text-primary: #F3F3F3;
+  --text-secondary: #A3A3A3;
+  --text-muted: #737373;
+  --accent-orange: #F5A23A;
+  --nav-active: #2C2C2C;
+  --success: #5D9273;
+  --warning: #E9A23B;
+  --danger: #C75A54;
+}
+
+* {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.font-editorial-num,
+.font-serif-accent {
+  font-family: 'Newsreader', 'Times New Roman', Georgia, serif;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #DDD9CF;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C4BFB2;
+}
+
