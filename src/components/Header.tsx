@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
         </div>
 
         <h1 className="hidden md:block text-sm sm:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap">
-          RFID TAG MANAGEMENT SYSTEM
+          HAM Pro Asset Management System
         </h1>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Building2,
   Tag,
@@ -9,24 +9,46 @@ import {
 import TickerNumber from './TickerNumber'
 import StoreFilter from './StoreFilter'
 import StoreAssetsTable from './StoreAssetsTable'
-
-interface MetricData {
-  totalStockRooms: number
-  totalAssets: number
-  totalIn: number
-  totalOut: number
-}
+import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 
 export const CentralDashboard: React.FC = () => {
-  const [metrics, setMetrics] = useState<MetricData>({
-    totalStockRooms: 18,
-    totalAssets: 48290,
-    totalIn: 3842,
-    totalOut: 1926
-  })
-
+  const [storeRecords, setStoreRecords] = useState<StoreAssetRecord[]>(DUMMY_STORE_RECORDS)
   const [currentTime, setCurrentTime] = useState<Date>(new Date())
   const [selectedStore, setSelectedStore] = useState('all')
+
+  // Calculate live KPI metrics directly from store records so cards and table always match 100%
+  const metrics = useMemo(() => {
+    const activeRecords =
+      selectedStore && selectedStore !== 'all'
+        ? storeRecords.filter((s) => s.id === selectedStore)
+        : storeRecords
+
+    const totalAssets = activeRecords.reduce((sum, s) => sum + s.totalAssets, 0)
+    const totalOut = activeRecords.reduce((sum, s) => sum + s.totalOut, 0)
+    const totalIn = totalAssets - totalOut // Available Assets = Total Tagged Assets - Asset Issuance
+
+    return {
+      totalStockRooms: selectedStore === 'all' ? storeRecords.length : 1,
+      totalAssets,
+      totalOut,
+      totalIn
+    }
+  }, [storeRecords, selectedStore])
+
+  // Memoize stock room options for dropdown directly from live storeRecords
+  const stockRoomOptions = useMemo(
+    () => [
+      { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
+      ...storeRecords.map((s) => ({
+        id: s.id,
+        storeCode: s.storeCode,
+        name: s.storeName,
+        location: s.location,
+        keywords: s.keywords
+      }))
+    ],
+    [storeRecords]
+  )
 
   useEffect(() => {
     const clockTimer = setInterval(() => {
@@ -37,17 +59,22 @@ export const CentralDashboard: React.FC = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setMetrics((prev) => {
-        const inIncrement = Math.floor(Math.random() * 3) + 1
-        const outIncrement = Math.random() > 0.5 ? 1 : 0
-        const assetIncrement = inIncrement - outIncrement
+      setStoreRecords((prev) => {
+        const targetIndex = Math.floor(Math.random() * prev.length)
+        const assetInc = Math.floor(Math.random() * 3) + 1
+        const outInc = Math.random() > 0.5 ? 1 : 0
 
-        return {
-          totalStockRooms: prev.totalStockRooms,
-          totalAssets: prev.totalAssets + assetIncrement,
-          totalIn: prev.totalIn + inIncrement,
-          totalOut: prev.totalOut + outIncrement
-        }
+        return prev.map((item, idx) => {
+          if (idx !== targetIndex) return item
+          const newAssets = item.totalAssets + assetInc
+          const newOut = item.totalOut + outInc
+          return {
+            ...item,
+            totalAssets: newAssets,
+            totalOut: newOut,
+            totalIn: newAssets - newOut
+          }
+        })
       })
     }, 4500)
 
@@ -88,7 +115,7 @@ export const CentralDashboard: React.FC = () => {
     },
     {
       id: 'assets',
-      title: 'Total Assets',
+      title: 'Total Tagged Assets',
       value: metrics.totalAssets,
       icon: (
         <Tag
@@ -102,23 +129,8 @@ export const CentralDashboard: React.FC = () => {
       waveColor: 'text-[#7C3AED] dark:text-[#C084FC]'
     },
     {
-      id: 'inbound',
-      title: 'Total In',
-      value: metrics.totalIn,
-      icon: (
-        <ArrowDownLeft
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
-          strokeWidth={2}
-        />
-      ),
-      bgClass: 'bg-[#F0FDF4] dark:bg-[#13281E]',
-      borderClass: 'border-[#DCFCE7] dark:border-[#1E4432] hover:border-transparent',
-      titleColor: 'text-[#059669] dark:text-[#4ADE80]',
-      waveColor: 'text-[#059669] dark:text-[#4ADE80]'
-    },
-    {
       id: 'outbound',
-      title: 'Total Out',
+      title: 'Asset Issuance',
       value: metrics.totalOut,
       icon: (
         <ArrowUpRight
@@ -130,6 +142,21 @@ export const CentralDashboard: React.FC = () => {
       borderClass: 'border-[#FFEDD5] dark:border-[#4B2818] hover:border-transparent',
       titleColor: 'text-[#EA580C] dark:text-[#FB923C]',
       waveColor: 'text-[#EA580C] dark:text-[#FB923C]'
+    },
+    {
+      id: 'inbound',
+      title: 'Available Assets',
+      value: metrics.totalIn,
+      icon: (
+        <ArrowDownLeft
+          className="w-9 h-9 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
+          strokeWidth={2}
+        />
+      ),
+      bgClass: 'bg-[#F0FDF4] dark:bg-[#13281E]',
+      borderClass: 'border-[#DCFCE7] dark:border-[#1E4432] hover:border-transparent',
+      titleColor: 'text-[#059669] dark:text-[#4ADE80]',
+      waveColor: 'text-[#059669] dark:text-[#4ADE80]'
     }
   ]
 
@@ -159,10 +186,11 @@ export const CentralDashboard: React.FC = () => {
             <span>{formatDateTime(currentTime)}</span>
           </div>
 
-          {/* Store Selection */}
+          {/* Stock Room Selection */}
           <StoreFilter
             selectedStore={selectedStore}
             onStoreChange={(storeId) => setSelectedStore(storeId)}
+            stores={stockRoomOptions}
           />
         </div>
       </div>
@@ -227,7 +255,12 @@ export const CentralDashboard: React.FC = () => {
 
       {/* Stores Assets Performance Table with clean separation space */}
       <div className="flex-1 min-h-0 flex flex-col mt-2.5 sm:mt-3.5 overflow-hidden">
-        <StoreAssetsTable selectedStoreId={selectedStore} className="flex-1 min-h-0 flex flex-col" />
+        <StoreAssetsTable
+          selectedStoreId={selectedStore}
+          onClearStoreFilter={() => setSelectedStore('all')}
+          storesData={storeRecords}
+          className="flex-1 min-h-0 flex flex-col"
+        />
       </div>
     </div>
   )

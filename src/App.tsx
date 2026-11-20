@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { DashboardLayout } from './components/DashboardLayout'
-import { WarehouseFullBackgroundScene } from './components/WarehouseFullBackgroundScene'
+import { OfficeRoomBackgroundScene } from './components/OfficeRoomBackgroundScene'
 import { LoginForm } from './components/LoginForm'
 import { BottomCurvedFooter } from './components/BottomCurvedFooter'
 import { WiproLoader } from './components/WiproLoader'
@@ -36,7 +36,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="h-screen max-h-screen w-full bg-[#F6F5F1] dark:bg-[#121212] text-[#171717] dark:text-[#EDEDED] flex flex-col justify-between relative select-none overflow-hidden">
-      <WarehouseFullBackgroundScene />
+      <OfficeRoomBackgroundScene />
 
       <header className="relative z-20 px-4 sm:px-8 lg:px-14 pt-3 sm:pt-4 pb-1 flex items-center justify-between shrink-0">
         <div className="px-1 py-1 flex items-center">

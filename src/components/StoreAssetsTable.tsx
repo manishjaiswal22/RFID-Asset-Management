@@ -1,138 +1,24 @@
 import { useState, useMemo } from 'react'
 import {
   Search,
-  Store,
+  Building2,
   FileSpreadsheet,
   ArrowDownLeft,
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
-  ArrowUpDown
+  ArrowUpDown,
+  X
 } from 'lucide-react'
+import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 
-export interface StoreAssetRecord {
-  id: string
-  storeCode: string
-  storeName: string
-  location: string
-  totalAssets: number
-  totalIn: number
-  totalOut: number
-}
-
-export const DUMMY_STORE_RECORDS: StoreAssetRecord[] = [
-  {
-    id: 'store-1',
-    storeCode: 'STR-001',
-    storeName: 'Store 1 - Central Hub',
-    location: 'Bengaluru, KA',
-    totalAssets: 8420,
-    totalIn: 920,
-    totalOut: 480
-  },
-  {
-    id: 'store-2',
-    storeCode: 'STR-002',
-    storeName: 'Store 2 - West Terminal',
-    location: 'Mumbai, MH',
-    totalAssets: 12850,
-    totalIn: 1140,
-    totalOut: 610
-  },
-  {
-    id: 'store-3',
-    storeCode: 'STR-003',
-    storeName: 'Store 3 - North Depot',
-    location: 'Delhi, NCR',
-    totalAssets: 9640,
-    totalIn: 750,
-    totalOut: 390
-  },
-  {
-    id: 'store-4',
-    storeCode: 'STR-004',
-    storeName: 'Store 4 - Cyber Logistics',
-    location: 'Hyderabad, TS',
-    totalAssets: 6780,
-    totalIn: 540,
-    totalOut: 290
-  },
-  {
-    id: 'store-5',
-    storeCode: 'STR-005',
-    storeName: 'Store 5 - South Express',
-    location: 'Chennai, TN',
-    totalAssets: 5320,
-    totalIn: 430,
-    totalOut: 210
-  },
-  {
-    id: 'store-6',
-    storeCode: 'STR-006',
-    storeName: 'Store 6 - Logistics Hub',
-    location: 'Pune, MH',
-    totalAssets: 4910,
-    totalIn: 380,
-    totalOut: 190
-  },
-  {
-    id: 'store-7',
-    storeCode: 'STR-007',
-    storeName: 'Store 7 - Whitefield Gate',
-    location: 'Bengaluru, KA',
-    totalAssets: 7120,
-    totalIn: 620,
-    totalOut: 310
-  },
-  {
-    id: 'store-8',
-    storeCode: 'STR-008',
-    storeName: 'Store 8 - Cyber City Center',
-    location: 'Gurugram, HR',
-    totalAssets: 11300,
-    totalIn: 980,
-    totalOut: 530
-  },
-  {
-    id: 'store-9',
-    storeCode: 'STR-009',
-    storeName: 'Store 9 - East Terminal',
-    location: 'Kolkata, WB',
-    totalAssets: 3850,
-    totalIn: 290,
-    totalOut: 160
-  },
-  {
-    id: 'store-10',
-    storeCode: 'STR-010',
-    storeName: 'Store 10 - North Hub',
-    location: 'Lucknow, UP',
-    totalAssets: 3200,
-    totalIn: 240,
-    totalOut: 130
-  },
-  {
-    id: 'store-11',
-    storeCode: 'STR-011',
-    storeName: 'Store 11 - West Express',
-    location: 'Ahmedabad, GJ',
-    totalAssets: 4450,
-    totalIn: 350,
-    totalOut: 180
-  },
-  {
-    id: 'store-12',
-    storeCode: 'STR-012',
-    storeName: 'Store 12 - Gateway Hub',
-    location: 'Jaipur, RJ',
-    totalAssets: 2980,
-    totalIn: 210,
-    totalOut: 110
-  }
-]
+export type { StoreAssetRecord }
+export { DUMMY_STORE_RECORDS }
 
 interface StoreAssetsTableProps {
   selectedStoreId?: string
+  onClearStoreFilter?: () => void
+  storesData?: StoreAssetRecord[]
   className?: string
 }
 
@@ -141,13 +27,17 @@ type SortOrder = 'asc' | 'desc'
 
 export default function StoreAssetsTable({
   selectedStoreId = 'all',
+  onClearStoreFilter,
+  storesData,
   className = ''
 }: StoreAssetsTableProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('totalAssets')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [rowsPerPage, setRowsPerPage] = useState<number>(10)
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(5)
   const [currentPage, setCurrentPage] = useState<number>(1)
+
+  const activeStores = storesData || DUMMY_STORE_RECORDS
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -158,82 +48,147 @@ export default function StoreAssetsTable({
     }
   }
 
-  // Filter & Sort records
+  // Selected store record (if filtered via dropdown)
+  const activeFilteredStore = useMemo(() => {
+    if (!selectedStoreId || selectedStoreId === 'all') return null
+    return activeStores.find((s) => s.id === selectedStoreId) || null
+  }, [activeStores, selectedStoreId])
+
+  // Filter & Sort records with tokenized, normalized, and numeric matching
   const filteredAndSortedRecords = useMemo(() => {
-    return DUMMY_STORE_RECORDS.filter((item) => {
-      // Filter by selected store dropdown
-      if (selectedStoreId && selectedStoreId !== 'all') {
-        if (item.id !== selectedStoreId) return false
-      }
+    return activeStores
+      .filter((item) => {
+        // Filter by selected store dropdown
+        if (selectedStoreId && selectedStoreId !== 'all') {
+          if (item.id !== selectedStoreId) return false
+        }
 
-      // Filter by text search query (supporting name, location, numbers with/without commas)
-      if (!searchQuery.trim()) return true
-      const rawQuery = searchQuery.trim().toLowerCase()
-      const numericQuery = rawQuery.replace(/,/g, '')
+        // Filter by text search query
+        if (!searchQuery.trim()) return true
+        const rawQuery = searchQuery.trim().toLowerCase()
+        const cleanQuery = rawQuery.replace(/[^a-z0-9]/g, '')
 
-      const totalAssetsStr = String(item.totalAssets)
-      const totalAssetsLocale = item.totalAssets.toLocaleString()
+        const nameLower = item.storeName.toLowerCase()
+        const cleanName = nameLower.replace(/[^a-z0-9]/g, '')
+        const keywordsLower = (item.keywords || '').toLowerCase()
 
-      const totalInStr = String(item.totalIn)
-      const totalInLocale = item.totalIn.toLocaleString()
+        // 1. Direct or normalized match on stock room name or keywords
+        if (
+          nameLower.includes(rawQuery) ||
+          (cleanQuery && cleanName.includes(cleanQuery)) ||
+          keywordsLower.includes(rawQuery)
+        ) {
+          return true
+        }
 
-      const totalOutStr = String(item.totalOut)
-      const totalOutLocale = item.totalOut.toLocaleString()
+        // 2. Multi-word token matching (all words separated by space/hyphen match)
+        const tokens = rawQuery.split(/[\s-]+/).filter(Boolean)
+        if (
+          tokens.length > 1 &&
+          tokens.every(
+            (t) =>
+              nameLower.includes(t) ||
+              cleanName.includes(t.replace(/[^a-z0-9]/g, '')) ||
+              keywordsLower.includes(t)
+          )
+        ) {
+          return true
+        }
 
-      return (
-        item.storeName.toLowerCase().includes(rawQuery) ||
-        item.storeCode.toLowerCase().includes(rawQuery) ||
-        item.location.toLowerCase().includes(rawQuery) ||
-        totalAssetsStr.includes(numericQuery) ||
-        totalAssetsLocale.toLowerCase().includes(rawQuery) ||
-        totalInStr.includes(numericQuery) ||
-        totalInLocale.toLowerCase().includes(rawQuery) ||
-        totalOutStr.includes(numericQuery) ||
-        totalOutLocale.toLowerCase().includes(rawQuery)
-      )
-    }).sort((a, b) => {
-      const aVal = a[sortField]
-      const bVal = b[sortField]
+        // 3. Numeric matching for Total Tagged Assets, Asset Issuance, Available Assets (with/without commas)
+        if (cleanQuery && /^\d+$/.test(cleanQuery)) {
+          const totalAssetsStr = String(item.totalAssets)
+          const totalOutStr = String(item.totalOut)
+          const availableAssetsStr = String(item.totalAssets - item.totalOut)
 
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc'
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal)
-      }
+          if (
+            totalAssetsStr.includes(cleanQuery) ||
+            totalOutStr.includes(cleanQuery) ||
+            availableAssetsStr.includes(cleanQuery)
+          ) {
+            return true
+          }
+        }
 
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
-      }
+        return false
+      })
+      .sort((a, b) => {
+        if (sortField === 'totalIn') {
+          const aVal = a.totalAssets - a.totalOut
+          const bVal = b.totalAssets - b.totalOut
+          return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
+        }
 
-      return 0
-    })
-  }, [selectedStoreId, searchQuery, sortField, sortOrder])
+        const aVal = a[sortField]
+        const bVal = b[sortField]
+
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortOrder === 'asc'
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal)
+        }
+
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
+        }
+
+        return 0
+      })
+  }, [activeStores, selectedStoreId, searchQuery, sortField, sortOrder])
 
   // Pagination
   const totalRecords = filteredAndSortedRecords.length
-  const totalPages = Math.ceil(totalRecords / rowsPerPage) || 1
-  const startIndex = (currentPage - 1) * rowsPerPage
-  const paginatedRecords = filteredAndSortedRecords.slice(
-    startIndex,
-    startIndex + rowsPerPage
-  )
+  const isAll = rowsPerPage === 'all'
+  const effectiveLimit = isAll ? Math.max(totalRecords, 1) : rowsPerPage
+  const totalPages = isAll ? 1 : Math.ceil(totalRecords / effectiveLimit) || 1
+  const startIndex = isAll ? 0 : (currentPage - 1) * effectiveLimit
+  const paginatedRecords = isAll
+    ? filteredAndSortedRecords
+    : filteredAndSortedRecords.slice(startIndex, startIndex + effectiveLimit)
+
+  // Helper to generate numbered page array (e.g. [1, 2, 3, 4, 5] or [1, 2, 3, '...', 10])
+  const getPageNumbers = () => {
+    if (isAll || totalPages <= 1) return [1]
+    const pages: (number | string)[] = []
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages)
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages)
+      }
+    }
+    return pages
+  }
+
+  // Column Totals for Table Footer (Total Tagged Assets - Asset Issuance = Available Assets)
+  const totals = useMemo(() => {
+    const totalAssets = filteredAndSortedRecords.reduce((sum, curr) => sum + curr.totalAssets, 0)
+    const totalOut = filteredAndSortedRecords.reduce((sum, curr) => sum + curr.totalOut, 0)
+    const totalIn = totalAssets - totalOut
+
+    return { totalAssets, totalOut, totalIn }
+  }, [filteredAndSortedRecords])
 
   const handleExportCSV = () => {
-    const headers = ['Store Code', 'Store Name', 'Location', 'Total Assets', 'Total In', 'Total Out']
+    const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
     const rows = filteredAndSortedRecords.map((r) => [
-      r.storeCode,
       `"${r.storeName}"`,
-      `"${r.location}"`,
       r.totalAssets,
-      r.totalIn,
-      r.totalOut
+      r.totalOut,
+      r.totalAssets - r.totalOut
     ])
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `store_assets_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `stock_room_assets_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -243,15 +198,15 @@ export default function StoreAssetsTable({
     <div
       className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] overflow-hidden flex flex-col min-h-0 ${className}`}
     >
-      {/* Table Toolbar Header (Compact, Matching Reference Image) */}
+      {/* Table Toolbar Header */}
       <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
-        {/* Left: Search input */}
-        <div className="flex items-center gap-2 flex-1 max-w-sm">
-          <div className="relative w-full">
+        {/* Left: Search input & Active Stock Room Filter Badge */}
+        <div className="flex items-center gap-2 flex-1 max-w-lg flex-wrap sm:flex-nowrap">
+          <div className="relative w-full max-w-sm">
             <Search className="w-3.5 h-3.5 text-[#99958D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search store name, assets, in/out..."
+              placeholder="Search stock room, tagged assets, issuance, available..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value)
@@ -260,6 +215,25 @@ export default function StoreAssetsTable({
               className="w-full pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-[#181818] rounded-2xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
             />
           </div>
+
+          {/* Active Filter Indicator Tag */}
+          {activeFilteredStore && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-2xl bg-[#00a8e7]/10 text-[#00a8e7] text-[11px] font-semibold border border-[#00a8e7]/20 shrink-0">
+              <span className="truncate max-w-[140px] sm:max-w-[200px]" title={activeFilteredStore.storeName}>
+                {activeFilteredStore.storeName}
+              </span>
+              {onClearStoreFilter && (
+                <button
+                  type="button"
+                  onClick={onClearStoreFilter}
+                  title="Show all stock rooms"
+                  className="p-0.5 rounded-full hover:bg-[#00a8e7]/20 transition-colors cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: Rows Selector and Export Button */}
@@ -269,7 +243,8 @@ export default function StoreAssetsTable({
             <select
               value={rowsPerPage}
               onChange={(e) => {
-                setRowsPerPage(Number(e.target.value))
+                const val = e.target.value
+                setRowsPerPage(val === 'all' ? 'all' : Number(val))
                 setCurrentPage(1)
               }}
               className="h-7 px-1.5 py-0 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
@@ -277,6 +252,7 @@ export default function StoreAssetsTable({
               <option value={5}>5</option>
               <option value={10}>10</option>
               <option value={20}>20</option>
+              <option value="all">All</option>
             </select>
           </div>
 
@@ -297,49 +273,49 @@ export default function StoreAssetsTable({
           {/* Fixed Sticky Table Header */}
           <thead className="sticky top-0 z-20 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
             <tr>
-              {/* Column 1: Store Name */}
+              {/* Column 1: Stock Room */}
               <th
                 onClick={() => handleSort('storeName')}
-                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
+                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[260px] sm:min-w-[320px]"
               >
                 <div className="flex items-center gap-1.5">
-                  <Store className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
-                  <span>Store Name</span>
+                  <Building2 className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
+                  <span>Stock Room</span>
                   <ArrowUpDown className="w-3 h-3 text-[#94A3B8]" />
                 </div>
               </th>
 
-              {/* Column 2: Total Assets */}
+              {/* Column 2: Total Tagged Assets */}
               <th
                 onClick={() => handleSort('totalAssets')}
                 className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
               >
                 <div className="flex items-center justify-end gap-1.5">
-                  <span>Total Assets</span>
+                  <span>Total Tagged Assets</span>
                   <ArrowUpDown className="w-3 h-3 text-[#94A3B8]" />
                 </div>
               </th>
 
-              {/* Column 3: Total In */}
-              <th
-                onClick={() => handleSort('totalIn')}
-                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
-              >
-                <div className="flex items-center justify-end gap-1.5">
-                  <ArrowDownLeft className="w-3.5 h-3.5 text-[#059669]" />
-                  <span>Total In</span>
-                  <ArrowUpDown className="w-3 h-3 text-[#94A3B8]" />
-                </div>
-              </th>
-
-              {/* Column 4: Total Out */}
+              {/* Column 3: Asset Issuance */}
               <th
                 onClick={() => handleSort('totalOut')}
                 className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
               >
                 <div className="flex items-center justify-end gap-1.5">
                   <ArrowUpRight className="w-3.5 h-3.5 text-[#EA580C]" />
-                  <span>Total Out</span>
+                  <span>Asset Issuance</span>
+                  <ArrowUpDown className="w-3 h-3 text-[#94A3B8]" />
+                </div>
+              </th>
+
+              {/* Column 4: Available Assets */}
+              <th
+                onClick={() => handleSort('totalIn')}
+                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
+              >
+                <div className="flex items-center justify-end gap-1.5">
+                  <ArrowDownLeft className="w-3.5 h-3.5 text-[#059669]" />
+                  <span>Available Assets</span>
                   <ArrowUpDown className="w-3 h-3 text-[#94A3B8]" />
                 </div>
               </th>
@@ -350,8 +326,17 @@ export default function StoreAssetsTable({
           <tbody className="divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] text-xs">
             {paginatedRecords.length === 0 ? (
               <tr>
-                <td colSpan={4} className="py-6 text-center text-[#99958D]">
-                  No matching store records found.
+                <td colSpan={4} className="py-8 text-center text-[#99958D]">
+                  <p className="font-medium text-xs">No matching stock room records found.</p>
+                  {selectedStoreId !== 'all' && onClearStoreFilter && (
+                    <button
+                      type="button"
+                      onClick={onClearStoreFilter}
+                      className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                    >
+                      Clear stock room filter and show all records
+                    </button>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -360,46 +345,79 @@ export default function StoreAssetsTable({
                   key={record.id}
                   className="hover:bg-[#F8FAFC] dark:hover:bg-[#252830]/60 transition-colors"
                 >
-                  {/* Column 1: Store Name */}
-                  <td className="py-1.5 sm:py-2 px-3 sm:px-4">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[#171717] dark:text-[#EDEDED] truncate leading-tight">
-                        {record.storeName}
-                      </p>
-                      <p className="text-[10px] text-[#64748B] dark:text-[#94A3B8] leading-tight">
-                        {record.location}
-                      </p>
-                    </div>
-                  </td>
-
-                  {/* Column 2: Total Assets */}
-                  <td className="py-1.5 sm:py-2 px-3 sm:px-4 text-right font-bold text-[#171717] dark:text-[#EDEDED] tabular-nums">
-                    {record.totalAssets.toLocaleString()}
-                  </td>
-
-                  {/* Column 3: Total In */}
-                  <td className="py-1.5 sm:py-2 px-3 sm:px-4 text-right">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#ECFDF5] dark:bg-[#064E3B]/40 text-[#059669] dark:text-[#34D399] font-bold tabular-nums text-xs">
-                      <ArrowDownLeft className="w-3 h-3 shrink-0" />
-                      {record.totalIn.toLocaleString()}
+                  {/* Column 1: Stock Room (Clean text matching dropdown exactly) */}
+                  <td className="py-2 px-3 sm:px-4">
+                    <span className="font-semibold text-[#171717] dark:text-[#EDEDED] text-xs">
+                      {record.storeName}
                     </span>
                   </td>
 
-                  {/* Column 4: Total Out */}
-                  <td className="py-1.5 sm:py-2 px-3 sm:px-4 text-right">
+                  {/* Column 2: Total Tagged Assets */}
+                  <td className="py-2 px-3 sm:px-4 text-right font-bold text-[#171717] dark:text-[#EDEDED] tabular-nums">
+                    {record.totalAssets.toLocaleString()}
+                  </td>
+
+                  {/* Column 3: Asset Issuance */}
+                  <td className="py-2 px-3 sm:px-4 text-right">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FFF7ED] dark:bg-[#7C2D12]/40 text-[#EA580C] dark:text-[#FB923C] font-bold tabular-nums text-xs">
                       <ArrowUpRight className="w-3 h-3 shrink-0" />
                       {record.totalOut.toLocaleString()}
+                    </span>
+                  </td>
+
+                  {/* Column 4: Available Assets (Total Tagged Assets - Asset Issuance) */}
+                  <td className="py-2 px-3 sm:px-4 text-right">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#ECFDF5] dark:bg-[#064E3B]/40 text-[#059669] dark:text-[#34D399] font-bold tabular-nums text-xs">
+                      <ArrowDownLeft className="w-3 h-3 shrink-0" />
+                      {(record.totalAssets - record.totalOut).toLocaleString()}
                     </span>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
+
+          {/* Sticky Table Footer with Column Totals & Counts */}
+          <tfoot className="sticky bottom-0 z-10 bg-[#F4F7FB] dark:bg-[#252830] border-t border-[#D5DCE5] dark:border-[#383C48] shadow-2xs font-semibold text-xs">
+            <tr>
+              {/* Column 1: Total Count */}
+              <td className="py-2 px-3 sm:px-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-[11px] text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider">
+                    Total Count
+                  </span>
+                  <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
+                    ({totalRecords} {totalRecords === 1 ? 'stock room' : 'stock rooms'})
+                  </span>
+                </div>
+              </td>
+
+              {/* Column 2: Total Tagged Assets Sum */}
+              <td className="py-2 px-3 sm:px-4 text-right font-bold text-xs text-[#171717] dark:text-[#EDEDED] tabular-nums">
+                {totals.totalAssets.toLocaleString()}
+              </td>
+
+              {/* Column 3: Asset Issuance Sum */}
+              <td className="py-2 px-3 sm:px-4 text-right">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FFF7ED] dark:bg-[#7C2D12]/40 text-[#EA580C] dark:text-[#FB923C] font-bold tabular-nums text-xs">
+                  <ArrowUpRight className="w-3 h-3 shrink-0" />
+                  {totals.totalOut.toLocaleString()}
+                </span>
+              </td>
+
+              {/* Column 4: Available Assets Sum */}
+              <td className="py-2 px-3 sm:px-4 text-right">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#ECFDF5] dark:bg-[#064E3B]/40 text-[#059669] dark:text-[#34D399] font-bold tabular-nums text-xs">
+                  <ArrowDownLeft className="w-3 h-3 shrink-0" />
+                  {totals.totalIn.toLocaleString()}
+                </span>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
-      {/* Table Pagination Footer (Matching Reference Image) */}
+      {/* Table Pagination Footer */}
       <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex items-center justify-between text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
         <div>
           <span>
@@ -409,7 +427,7 @@ export default function StoreAssetsTable({
             </strong>{' '}
             to{' '}
             <strong className="text-[#171717] dark:text-[#EDEDED]">
-              {Math.min(startIndex + rowsPerPage, totalRecords)}
+              {isAll ? totalRecords : Math.min(startIndex + (effectiveLimit as number), totalRecords)}
             </strong>{' '}
             of{' '}
             <strong className="text-[#171717] dark:text-[#EDEDED]">
@@ -419,24 +437,49 @@ export default function StoreAssetsTable({
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="p-1.5 rounded-2xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            disabled={currentPage === 1 || isAll}
+            className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="Previous page"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
 
-          <span className="min-w-7 h-7 px-2 flex items-center justify-center rounded-2xl bg-[#171717] dark:bg-white text-white dark:text-[#171717] font-bold text-xs select-none">
-            {currentPage}
-          </span>
+          {getPageNumbers().map((page, idx) => {
+            if (page === '...') {
+              return (
+                <span key={`ellipsis-${idx}`} className="px-1 text-xs text-[#99958D] font-bold select-none">
+                  ...
+                </span>
+              )
+            }
+
+            const pageNum = Number(page)
+            const isActive = pageNum === currentPage
+
+            return (
+              <button
+                key={`page-${pageNum}`}
+                type="button"
+                onClick={() => !isAll && setCurrentPage(pageNum)}
+                disabled={isAll}
+                className={`min-w-7 h-7 px-2 flex items-center justify-center rounded-xl text-xs font-semibold select-none transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-[#171717] dark:bg-white text-white dark:text-[#171717] font-bold shadow-xs'
+                    : 'border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:border-[#171717]/40 dark:hover:border-white/40'
+                }`}
+              >
+                {pageNum}
+              </button>
+            )
+          })}
 
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            className="p-1.5 rounded-2xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            disabled={currentPage >= totalPages || isAll}
+            className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="Next page"
           >
             <ChevronRight className="w-3.5 h-3.5" />

@@ -1,11 +1,10 @@
 import React, { useState } from 'react'
 import {
   LayoutDashboard,
-  Store,
   Layers,
   FileBarChart,
   ChevronDown,
-  Radio,
+  Users,
   Building2,
   PanelLeft,
   PanelLeftClose
@@ -26,11 +25,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsCollapsed
 }) => {
   const [isMasterExpanded, setIsMasterExpanded] = useState(
-    activeMenu === 'reader-master' || activeMenu === 'store-master'
+    activeMenu === 'user-master' || activeMenu === 'reader-master' || activeMenu === 'store-master'
   )
 
   const isMasterActive =
-    activeMenu === 'reader-master' || activeMenu === 'store-master'
+    activeMenu === 'user-master' || activeMenu === 'reader-master' || activeMenu === 'store-master'
 
   const handleMasterClick = () => {
     if (isCollapsed) {
@@ -97,12 +96,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
               } ${isCollapsed ? 'justify-center px-0' : ''}`}
             >
-              <Store className="w-5 h-5 shrink-0 text-[#171717] dark:text-[#EDEDED]" />
-              {!isCollapsed && <span>Store Dashboard</span>}
+              <Building2 className="w-5 h-5 shrink-0 text-[#171717] dark:text-[#EDEDED]" />
+              {!isCollapsed && <span>Stock Room</span>}
             </button>
             {isCollapsed && (
               <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-md">
-                Store Dashboard
+                Stock Room
               </div>
             )}
           </div>
@@ -130,33 +129,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
             {isCollapsed && (
               <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-md">
-                Master (Reader & Store)
+                Master (User & Stock Room)
               </div>
             )}
 
             {!isCollapsed && isMasterExpanded && (
-              <div className="ml-3 pl-3 border-l border-[#EAE7DF] dark:border-[#2C2C2C] mt-2 space-y-1.5">
+              <div className="ml-3 pl-3 border-l-2 border-[#EAE7DF] dark:border-[#2C2C2C] mt-2 space-y-1.5">
                 <button
-                  onClick={() => setActiveMenu('reader-master')}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                    activeMenu === 'reader-master'
-                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
-                      : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                  onClick={() => setActiveMenu('user-master')}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
+                    activeMenu === 'user-master' || activeMenu === 'reader-master'
+                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white shadow-xs'
+                      : 'text-[#555555] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
                   }`}
                 >
-                  <Radio className="w-3.5 h-3.5 text-[#666666] dark:text-[#A0A0A0]" />
-                  <span>Reader Master</span>
+                  <Users className="w-4 h-4 text-[#171717] dark:text-[#EDEDED]" />
+                  <span>User Master</span>
                 </button>
                 <button
                   onClick={() => setActiveMenu('store-master')}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer ${
                     activeMenu === 'store-master'
-                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
-                      : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white shadow-xs'
+                      : 'text-[#555555] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
                   }`}
                 >
-                  <Building2 className="w-3.5 h-3.5 text-[#666666] dark:text-[#A0A0A0]" />
-                  <span>Store Master</span>
+                  <Building2 className="w-4 h-4 text-[#171717] dark:text-[#EDEDED]" />
+                  <span>Stock Room Master</span>
                 </button>
               </div>
             )}

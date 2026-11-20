@@ -5,7 +5,7 @@ import { Header } from './Header'
 import { DashboardFooter } from './DashboardFooter'
 import { CentralDashboard } from './CentralDashboard'
 import { StoreDashboard } from './StoreDashboard'
-import { ReaderMaster } from './ReaderMaster'
+import { UserMaster } from './UserMaster'
 import { StoreMaster } from './StoreMaster'
 import { ReportsView } from './ReportsView'
 
@@ -22,11 +22,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
       case 'central':
         return 'Central Dashboard'
       case 'store':
-        return 'Store Dashboard'
+        return 'Stock Room Dashboard'
+      case 'user-master':
       case 'reader-master':
-        return 'Reader Master'
+        return 'User Master'
       case 'store-master':
-        return 'Store Master'
+        return 'Stock Room Master'
       case 'report':
         return 'Report'
     }
@@ -52,7 +53,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
           <div className="w-full h-full flex-1 min-h-0 rounded-2xl bg-white dark:bg-[#1C1C1C] p-3 sm:p-4 flex flex-col sm:overflow-hidden transition-colors border border-[#EAE7DF]/70 dark:border-[#262626]">
             {activeMenu === 'central' && <CentralDashboard />}
             {activeMenu === 'store' && <StoreDashboard />}
-            {activeMenu === 'reader-master' && <ReaderMaster />}
+            {(activeMenu === 'user-master' || activeMenu === 'reader-master') && <UserMaster />}
             {activeMenu === 'store-master' && <StoreMaster />}
             {activeMenu === 'report' && <ReportsView />}
           </div>

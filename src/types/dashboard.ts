@@ -1,4 +1,4 @@
-export type NavMenu = 'central' | 'store' | 'reader-master' | 'store-master' | 'report'
+export type NavMenu = 'central' | 'store' | 'user-master' | 'store-master' | 'report' | 'reader-master'
 
 export interface KPICardData {
   title: string

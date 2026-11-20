@@ -134,7 +134,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
       <div className="w-full bg-white rounded-3xl p-6 sm:p-7 md:p-8 shadow-2xl shadow-black/5 border border-[#EAE7DF]">
         <div className="pb-3.5 mb-4 sm:mb-5 border-b border-[#EAE7DF]/80">
           <h2 className="text-xs sm:text-sm md:text-base font-black tracking-wider text-[#171717] uppercase">
-            RFID TAG MANAGEMENT SYSTEM
+            HAM PRO ASSET MANAGEMENT SYSTEM
           </h2>
           <div className="w-12 h-1 bg-[#F5A23A] rounded-full mt-1.5" />
         </div>

@@ -14,8 +14,8 @@ export const BottomCurvedFooter: React.FC = () => {
             <span className="text-xs sm:text-sm font-bold text-white tracking-wide whitespace-nowrap">
               Version 1.0.0
             </span>
-            <span className="text-[10px] sm:text-[11px] text-[#99958D] font-medium hidden xs:block whitespace-nowrap">
-              RFID Tag Management System
+            <span className="text-[10px] sm:text-[11px] text-[#99958D] font-medium hidden sm:block whitespace-nowrap">
+              HAM Pro Asset Management System
             </span>
           </div>
         </div>
