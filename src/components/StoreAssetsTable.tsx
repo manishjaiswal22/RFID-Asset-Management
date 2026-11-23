@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Search,
   Building2,
@@ -9,7 +9,8 @@ import {
   ChevronRight,
   ArrowUpDown,
   X,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 import { exportToExcel } from '../utils/excelExport'
@@ -17,38 +18,110 @@ import { exportToExcel } from '../utils/excelExport'
 export type { StoreAssetRecord }
 export { DUMMY_STORE_RECORDS }
 
+export type SortField = 'storeName' | 'totalAssets' | 'totalIn' | 'totalOut'
+export type SortOrder = 'asc' | 'desc'
+
 interface StoreAssetsTableProps {
+  cardsBottomOffset?: number
   selectedStoreId?: string
   onClearStoreFilter?: () => void
   onNavigateToStore?: (storeId: string) => void
   storesData?: StoreAssetRecord[]
   className?: string
+  isServerSide?: boolean
+  isLoading?: boolean
+  totalRecordsCount?: number
+  totalPagesCount?: number
+  serverSearchQuery?: string
+  onSearchChange?: (query: string) => void
+  serverSortField?: SortField
+  serverSortOrder?: SortOrder
+  onSortChange?: (field: SortField) => void
+  serverRowsPerPage?: number | 'all'
+  onRowsPerPageChange?: (size: number | 'all') => void
+  serverCurrentPage?: number
+  onPageChange?: (page: number) => void
 }
 
-type SortField = 'storeName' | 'totalAssets' | 'totalIn' | 'totalOut'
-type SortOrder = 'asc' | 'desc'
-
 export default function StoreAssetsTable({
+  cardsBottomOffset,
   selectedStoreId = 'all',
   onClearStoreFilter,
   onNavigateToStore,
   storesData,
-  className = ''
+  className = '',
+  isServerSide = false,
+  isLoading = false,
+  totalRecordsCount,
+  totalPagesCount,
+  serverSearchQuery,
+  onSearchChange,
+  serverSortField,
+  serverSortOrder,
+  onSortChange,
+  serverRowsPerPage,
+  onRowsPerPageChange,
+  serverCurrentPage,
+  onPageChange
 }: StoreAssetsTableProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sortField, setSortField] = useState<SortField>('totalAssets')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [internalSearchQuery, setInternalSearchQuery] = useState('')
+  const [internalSortField, setInternalSortField] = useState<SortField>('totalAssets')
+  const [internalSortOrder, setInternalSortOrder] = useState<SortOrder>('desc')
+  const [internalRowsPerPage, setInternalRowsPerPage] = useState<number | 'all'>(10)
+  const [internalCurrentPage, setInternalCurrentPage] = useState<number>(1)
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const [toolbarHeight, setToolbarHeight] = useState<number>(44)
+
+  useEffect(() => {
+    if (toolbarRef.current) {
+      setToolbarHeight(toolbarRef.current.offsetHeight)
+    }
+  }, [])
+
+  const searchQuery = isServerSide ? (serverSearchQuery ?? '') : internalSearchQuery
+  const sortField = isServerSide ? (serverSortField ?? 'totalAssets') : internalSortField
+  const sortOrder = isServerSide ? (serverSortOrder ?? 'desc') : internalSortOrder
+  const rowsPerPage = isServerSide ? (serverRowsPerPage ?? 10) : internalRowsPerPage
+  const currentPage = isServerSide ? (serverCurrentPage ?? 1) : internalCurrentPage
 
   const activeStores = storesData || DUMMY_STORE_RECORDS
 
   const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    if (isServerSide) {
+      onSortChange?.(field)
     } else {
-      setSortField(field)
-      setSortOrder('desc')
+      if (sortField === field) {
+        setInternalSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+      } else {
+        setInternalSortField(field)
+        setInternalSortOrder('desc')
+      }
+    }
+  }
+
+  const handleSearchChange = (val: string) => {
+    if (isServerSide) {
+      onSearchChange?.(val)
+    } else {
+      setInternalSearchQuery(val)
+      setInternalCurrentPage(1)
+    }
+  }
+
+  const handleRowsPerPageChange = (val: number | 'all') => {
+    if (isServerSide) {
+      onRowsPerPageChange?.(val)
+    } else {
+      setInternalRowsPerPage(val)
+      setInternalCurrentPage(1)
+    }
+  }
+
+  const handlePageChange = (val: number) => {
+    if (isServerSide) {
+      onPageChange?.(val)
+    } else {
+      setInternalCurrentPage(val)
     }
   }
 
@@ -141,14 +214,24 @@ export default function StoreAssetsTable({
   }, [activeStores, selectedStoreId, searchQuery, sortField, sortOrder])
 
   // Pagination
-  const totalRecords = filteredAndSortedRecords.length
+  const totalRecords = isServerSide
+    ? (totalRecordsCount ?? activeStores.length)
+    : filteredAndSortedRecords.length
   const isAll = rowsPerPage === 'all'
   const effectiveLimit = isAll ? Math.max(totalRecords, 1) : rowsPerPage
-  const totalPages = isAll ? 1 : Math.ceil(totalRecords / effectiveLimit) || 1
+  const totalPages = isServerSide
+    ? (totalPagesCount ?? (isAll ? 1 : Math.ceil(totalRecords / effectiveLimit) || 1))
+    : (isAll ? 1 : Math.ceil(totalRecords / effectiveLimit) || 1)
   const startIndex = isAll ? 0 : (currentPage - 1) * effectiveLimit
   const paginatedRecords = isAll
     ? filteredAndSortedRecords
     : filteredAndSortedRecords.slice(startIndex, startIndex + effectiveLimit)
+
+  const recordsToDisplay = isServerSide ? activeStores : paginatedRecords
+  const displayStart = totalRecords === 0 ? 0 : startIndex + 1
+  const displayEnd = isAll
+    ? totalRecords
+    : Math.min(startIndex + recordsToDisplay.length, totalRecords)
 
   // Helper to generate numbered page array (e.g. [1, 2, 3, 4, 5] or [1, 2, 3, '...', 10])
   const getPageNumbers = () => {
@@ -172,7 +255,8 @@ export default function StoreAssetsTable({
 
   const handleExportExcel = () => {
     const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
-    const rows = filteredAndSortedRecords.map((r) => [
+    const recordsToExport = isServerSide ? activeStores : filteredAndSortedRecords
+    const rows = recordsToExport.map((r) => [
       r.storeName,
       r.totalAssets,
       r.totalOut,
@@ -188,10 +272,18 @@ export default function StoreAssetsTable({
 
   return (
     <div
-      className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] lg:overflow-visible overflow-hidden flex flex-col ${className}`}
+      className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] sm:overflow-visible overflow-hidden flex flex-col ${className}`}
     >
-      {/* Table Toolbar Header (Sticky on desktop below cards) */}
-      <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 lg:sticky lg:top-[213px] lg:z-15 rounded-t-2xl">
+      {/* Table Toolbar Header (Sticky below cards) */}
+      <div
+        ref={toolbarRef}
+        style={{
+          top: cardsBottomOffset !== undefined ? `${cardsBottomOffset}px` : undefined
+        }}
+        className={`px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 ${
+          cardsBottomOffset !== undefined ? 'sticky z-25' : 'lg:sticky lg:top-[213px] lg:z-15'
+        } rounded-t-2xl`}
+      >
         {/* Left: Search input & Active Stock Room Filter Badge */}
         <div className="flex items-center gap-2 flex-1 max-w-lg flex-wrap sm:flex-nowrap">
           <div className="relative w-full max-w-sm">
@@ -200,10 +292,7 @@ export default function StoreAssetsTable({
               type="text"
               placeholder="Search stock room, tagged assets, issuance, available..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-[#181818] rounded-2xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
             />
           </div>
@@ -236,8 +325,7 @@ export default function StoreAssetsTable({
               value={rowsPerPage}
               onChange={(e) => {
                 const val = e.target.value
-                setRowsPerPage(val === 'all' ? 'all' : Number(val))
-                setCurrentPage(1)
+                handleRowsPerPageChange(val === 'all' ? 'all' : Number(val))
               }}
               className="h-7 px-1.5 py-0 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
             >
@@ -260,15 +348,22 @@ export default function StoreAssetsTable({
       </div>
 
       {/* Table Container */}
-      <div className="relative w-full lg:overflow-visible overflow-x-auto [scrollbar-width:thin]">
+      <div className="relative w-full sm:overflow-visible overflow-x-auto [scrollbar-width:thin]">
         <table className="w-full text-left border-collapse select-none">
-          {/* Table Header: Sticky below toolbar on desktop */}
-          <thead className="lg:sticky lg:top-[258px] lg:z-10 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
-            <tr>
+          {/* Table Header: Sticky below toolbar */}
+          <thead
+            style={{
+              top: cardsBottomOffset !== undefined ? `${cardsBottomOffset + toolbarHeight}px` : undefined
+            }}
+            className={`border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs ${
+              cardsBottomOffset !== undefined ? 'sticky z-20' : 'lg:sticky lg:top-[258px] lg:z-10'
+            }`}
+          >
+            <tr className="bg-[#F4F7FB] dark:bg-[#252830]">
               {/* Column 1: Stock Room */}
               <th
                 onClick={() => handleSort('storeName')}
-                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[260px] sm:min-w-[320px]"
+                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[260px] sm:min-w-[320px] bg-[#F4F7FB] dark:bg-[#252830]"
               >
                 <div className="flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
@@ -280,7 +375,7 @@ export default function StoreAssetsTable({
               {/* Column 2: Total Tagged Assets */}
               <th
                 onClick={() => handleSort('totalAssets')}
-                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
+                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors bg-[#F4F7FB] dark:bg-[#252830]"
               >
                 <div className="flex items-center justify-end gap-1.5">
                   <span>Total Tagged Assets</span>
@@ -291,7 +386,7 @@ export default function StoreAssetsTable({
               {/* Column 3: Asset Issuance */}
               <th
                 onClick={() => handleSort('totalOut')}
-                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
+                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors bg-[#F4F7FB] dark:bg-[#252830]"
               >
                 <div className="flex items-center justify-end gap-1.5">
                   <ArrowUpRight className="w-3.5 h-3.5 text-[#EA580C]" />
@@ -303,7 +398,7 @@ export default function StoreAssetsTable({
               {/* Column 4: Available Assets */}
               <th
                 onClick={() => handleSort('totalIn')}
-                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
+                className="py-2 px-3 sm:px-4 text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] tracking-wider uppercase text-right cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors bg-[#F4F7FB] dark:bg-[#252830]"
               >
                 <div className="flex items-center justify-end gap-1.5">
                   <ArrowDownLeft className="w-3.5 h-3.5 text-[#059669]" />
@@ -315,44 +410,75 @@ export default function StoreAssetsTable({
           </thead>
 
           {/* Scrollable Table Body */}
-          <tbody className="divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] text-xs">
-            {paginatedRecords.length === 0 ? (
+          <tbody className={`divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] text-xs transition-opacity duration-200 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
+            {recordsToDisplay.length === 0 ? (
               <tr>
                 <td colSpan={4} className="py-8 text-center text-[#99958D]">
-                  <p className="font-medium text-xs">No matching stock room records found.</p>
-                  {selectedStoreId !== 'all' && onClearStoreFilter && (
-                    <button
-                      type="button"
-                      onClick={onClearStoreFilter}
-                      className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
-                    >
-                      Clear stock room filter and show all records
-                    </button>
+                  {isLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-4">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                      <span className="font-medium text-xs">Loading records from server...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-medium text-xs">No matching stock room records found.</p>
+                      {selectedStoreId !== 'all' && onClearStoreFilter && (
+                        <button
+                          type="button"
+                          onClick={onClearStoreFilter}
+                          className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                        >
+                          Clear stock room filter and show all records
+                        </button>
+                      )}
+                    </>
                   )}
                 </td>
               </tr>
             ) : (
-              paginatedRecords.map((record) => (
+              recordsToDisplay.map((record) => (
                 <tr
                   key={record.id}
-                  className="hover:bg-[#F8FAFC] dark:hover:bg-[#252830]/60 transition-colors"
+                  onClick={() => onNavigateToStore?.(record.id)}
+                  className={`hover:bg-[#F0F6FF]/60 dark:hover:bg-[#1E293B]/60 transition-colors ${
+                    onNavigateToStore ? 'cursor-pointer group' : ''
+                  }`}
                 >
                   {/* Column 1: Stock Room (Clean text matching dropdown exactly) with View action */}
                   <td className="py-2 px-3 sm:px-4">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-[#171717] dark:text-[#EDEDED] text-xs">
+                      <span className="font-semibold text-[#171717] dark:text-[#EDEDED] text-xs group-hover:text-[#1D63ED] dark:group-hover:text-[#60A5FA] transition-colors">
                         {record.storeName}
                       </span>
                       {onNavigateToStore && (
-                        <button
-                          type="button"
-                          onClick={() => onNavigateToStore(record.id)}
-                          title={`View ${record.storeName} in Stock Room Dashboard`}
-                          aria-label={`View ${record.storeName} in Stock Room Dashboard`}
-                          className="p-1 rounded-md text-[#64748B] dark:text-[#94A3B8] hover:text-[#00a8e7] dark:hover:text-[#38bdf8] hover:bg-[#EBF8FE] dark:hover:bg-[#00a8e7]/10 transition-colors cursor-pointer shrink-0"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="relative inline-flex items-center group/view-tip">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onNavigateToStore(record.id)
+                            }}
+                            aria-label={`View ${record.storeName} in Stock Room Dashboard`}
+                            className="p-1 rounded-md text-[#64748B] dark:text-[#94A3B8] hover:text-[#00a8e7] dark:hover:text-[#38bdf8] hover:bg-[#EBF8FE] dark:hover:bg-[#00a8e7]/15 transition-all duration-150 cursor-pointer shrink-0 active:scale-95"
+                          >
+                            <Eye className="w-3.5 h-3.5 transition-transform duration-150 group-hover/view-tip:scale-110" />
+                          </button>
+
+                          {/* Modern High-Fidelity Tooltip */}
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 invisible group-hover/view-tip:opacity-100 group-hover/view-tip:visible scale-90 group-hover/view-tip:scale-100 translate-y-1.5 group-hover/view-tip:translate-y-0 transition-all duration-200 ease-out flex flex-col items-center drop-shadow-xl"
+                          >
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 dark:border-slate-600/80 shadow-2xl whitespace-nowrap">
+                              <span className="text-[11px] font-semibold text-slate-100 tracking-tight">
+                                View Stock Room Details
+                              </span>
+                              <ArrowUpRight className="w-3 h-3 text-[#38BDF8] stroke-[2.5]" />
+                            </div>
+                            {/* Downward Caret */}
+                            <div className="w-2 h-2 -mt-1 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 dark:border-slate-600/80 rotate-45 transform" />
+                          </div>
+                        </div>
                       )}
                     </div>
                   </td>
@@ -390,11 +516,11 @@ export default function StoreAssetsTable({
           <span>
             Showing{' '}
             <strong className="text-[#171717] dark:text-[#EDEDED]">
-              {totalRecords === 0 ? 0 : startIndex + 1}
+              {displayStart}
             </strong>{' '}
             to{' '}
             <strong className="text-[#171717] dark:text-[#EDEDED]">
-              {isAll ? totalRecords : Math.min(startIndex + (effectiveLimit as number), totalRecords)}
+              {displayEnd}
             </strong>{' '}
             of{' '}
             <strong className="text-[#171717] dark:text-[#EDEDED]">
@@ -406,7 +532,7 @@ export default function StoreAssetsTable({
 
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1 || isAll}
             className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="Previous page"
@@ -430,7 +556,7 @@ export default function StoreAssetsTable({
               <button
                 key={`page-${pageNum}`}
                 type="button"
-                onClick={() => !isAll && setCurrentPage(pageNum)}
+                onClick={() => !isAll && handlePageChange(pageNum)}
                 disabled={isAll}
                 className={`min-w-7 h-7 px-2 flex items-center justify-center rounded-xl text-xs font-semibold select-none transition-colors cursor-pointer ${
                   isActive
@@ -444,7 +570,7 @@ export default function StoreAssetsTable({
           })}
 
           <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage >= totalPages || isAll}
             className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="Next page"

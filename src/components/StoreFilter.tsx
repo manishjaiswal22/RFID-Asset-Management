@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { Building2, Search, ChevronDown, Check, X } from 'lucide-react'
+import { Building2, Search, ChevronDown, Check, X, Loader2 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS } from '../data/storesData'
+import { dashboardService } from '../services/dashboardService'
 
 export interface StoreItem {
   id: string
@@ -37,16 +38,72 @@ export default function StoreFilter({
   selectedStore: controlledStore,
   defaultStore = 'all',
   onStoreChange,
-  stores = DUMMY_STORES,
+  stores: externalStores,
   className = ''
 }: StoreFilterProps) {
   const [internalStore, setInternalStore] = useState(defaultStore)
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
+  const [apiStores, setApiStores] = useState<StoreItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    // Only fetch if externalStores is not explicitly provided with custom data
+    if (externalStores && externalStores !== DUMMY_STORES && externalStores.length > 0) {
+      return
+    }
+
+    let mounted = true
+    setIsLoading(true)
+    dashboardService
+      .getStockrooms()
+      .then((data) => {
+        if (mounted && data?.length) {
+          const mapped: StoreItem[] = [
+            { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
+            ...data.map((item) => ({
+              id: String(item.stockroomId),
+              storeCode: `SR-${item.stockroomId}`,
+              name: item.stockroomName,
+              location: item.stockroomName,
+              keywords: item.stockroomName
+            }))
+          ]
+          setApiStores(mapped)
+        }
+      })
+      .catch((err) => {
+        console.warn('StoreFilter: Could not fetch stockrooms from API', err)
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [externalStores])
+
+  const stores =
+    externalStores && externalStores !== DUMMY_STORES && externalStores.length > 0
+      ? externalStores
+      : apiStores.length > 0
+        ? apiStores
+        : DUMMY_STORES
+
+  const isMatch = (store: StoreItem, targetId?: string) => {
+    if (!targetId) return false
+    if (store.id === targetId) return true
+    if (targetId !== 'all') {
+      if (store.id === `stock-${targetId}` || `stock-${store.id}` === targetId) return true
+      if (store.name.toLowerCase() === targetId.toLowerCase()) return true
+    }
+    return false
+  }
+
   const currentStoreId = controlledStore !== undefined ? controlledStore : internalStore
-  const currentStore = stores.find((s) => s.id === currentStoreId) || stores[0] || {
+  const currentStore = stores.find((s) => isMatch(s, currentStoreId)) || stores[0] || {
     id: 'all',
     storeCode: '',
     name: 'All Stock Rooms',
@@ -165,13 +222,18 @@ export default function StoreFilter({
 
           {/* Stock Room List */}
           <div className="max-h-60 overflow-y-auto py-1" role="listbox">
-            {filteredStores.length === 0 ? (
+            {isLoading && stores.length <= 1 ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-xs text-[#99958D] font-medium">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00a8e7]" />
+                <span>Loading stock rooms...</span>
+              </div>
+            ) : filteredStores.length === 0 ? (
               <p className="px-3 py-3 text-xs text-[#99958D] font-medium text-center">
                 No matching stock rooms found
               </p>
             ) : (
               filteredStores.map((store) => {
-                const isSelected = currentStoreId === store.id
+                const isSelected = isMatch(store, currentStore.id) || isMatch(store, currentStoreId)
                 return (
                   <button
                     key={store.id}

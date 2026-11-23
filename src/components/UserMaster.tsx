@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   User,
   Lock,
@@ -19,153 +19,61 @@ import {
   Power,
   Copy,
   Check,
-  X
+  X,
+  Building2,
+  Shield,
+  Loader2
 } from 'lucide-react'
 import { exportToExcel } from '../utils/excelExport'
+import { userService } from '../services/userService'
+import { dashboardService } from '../services/dashboardService'
+import type {
+  ApiUserRecord,
+  UserSummary,
+  UserPagination,
+  UserSortField,
+  CreateUserPayload,
+  UpdateUserPayload
+} from '../types/userMaster'
+import type { ApiStockroom } from '../types/stockroom'
 
-export interface UserMasterRecord {
-  id: string
-  userName: string
-  password: string
-  email: string
-  contactNumber: string
-  isStatus: 'Active' | 'Inactive'
-  createdAt: string
-  updatedAt?: string
-}
-
-const INITIAL_USERS: UserMasterRecord[] = [
-  {
-    id: 'usr-1',
-    userName: 'manoj.sharma',
-    password: 'Password@2026',
-    email: 'manoj.sharma@wipro.com',
-    contactNumber: '+91 98450 12345',
-    isStatus: 'Active',
-    createdAt: '2026-11-15 09:30:00'
-  },
-  {
-    id: 'usr-2',
-    userName: 'suresh.nair',
-    password: 'Secure#Stock26',
-    email: 'suresh.nair@wipro.com',
-    contactNumber: '+91 98451 23456',
-    isStatus: 'Active',
-    createdAt: '2026-11-15 11:20:00'
-  },
-  {
-    id: 'usr-3',
-    userName: 'ananya.verma',
-    password: 'Rfid!Portal99',
-    email: 'ananya.verma@wipro.com',
-    contactNumber: '+91 98452 34567',
-    isStatus: 'Active',
-    createdAt: '2026-11-16 14:15:00'
-  },
-  {
-    id: 'usr-4',
-    userName: 'vikram.patel',
-    password: 'AssetTrack#2026',
-    email: 'vikram.patel@wipro.com',
-    contactNumber: '+91 98453 45678',
-    isStatus: 'Active',
-    createdAt: '2026-11-16 16:40:00'
-  },
-  {
-    id: 'usr-5',
-    userName: 'rohan.gupta',
-    password: 'WiproAdmin$44',
-    email: 'rohan.gupta@wipro.com',
-    contactNumber: '+91 98454 56789',
-    isStatus: 'Active',
-    createdAt: '2026-11-17 10:10:00'
-  },
-  {
-    id: 'usr-6',
-    userName: 'pooja.mehta',
-    password: 'HamPro!Lead10',
-    email: 'pooja.mehta@wipro.com',
-    contactNumber: '+91 98455 67890',
-    isStatus: 'Active',
-    createdAt: '2026-11-17 15:30:00'
-  },
-  {
-    id: 'usr-7',
-    userName: 'deepak.yadav',
-    password: 'Delhi$Stock88',
-    email: 'deepak.yadav@wipro.com',
-    contactNumber: '+91 98456 78901',
-    isStatus: 'Inactive',
-    createdAt: '2026-11-18 09:20:00'
-  },
-  {
-    id: 'usr-8',
-    userName: 'kavita.reddy',
-    password: 'Infospace@2026',
-    email: 'kavita.reddy@wipro.com',
-    contactNumber: '+91 98457 89012',
-    isStatus: 'Active',
-    createdAt: '2026-11-18 13:45:00'
-  },
-  {
-    id: 'usr-9',
-    userName: 'karthik.iyer',
-    password: 'BlrEcity!77',
-    email: 'karthik.iyer@wipro.com',
-    contactNumber: '+91 98458 90123',
-    isStatus: 'Active',
-    createdAt: '2026-11-19 11:15:00'
-  },
-  {
-    id: 'usr-10',
-    userName: 'priyanka.joshi',
-    password: 'PuneHinj#2026',
-    email: 'priyanka.joshi@wipro.com',
-    contactNumber: '+91 98459 01234',
-    isStatus: 'Active',
-    createdAt: '2026-11-19 16:50:00'
-  },
-  {
-    id: 'usr-11',
-    userName: 'sachin.deshmukh',
-    password: 'Hardware@Op5',
-    email: 'sachin.deshmukh@wipro.com',
-    contactNumber: '+91 98460 12345',
-    isStatus: 'Active',
-    createdAt: '2026-11-20 09:05:00'
-  },
-  {
-    id: 'usr-12',
-    userName: 'karthik.iyer',
-    password: 'Karthik!Bang26',
-    email: 'karthik.iyer@wipro.com',
-    contactNumber: '+91 98461 23456',
-    isStatus: 'Active',
-    createdAt: '2026-11-20 11:30:00'
-  }
-]
-
-type SortField = 'userName' | 'email' | 'contactNumber' | 'isStatus' | 'createdAt'
-type SortOrder = 'asc' | 'desc'
+export type { ApiUserRecord as UserMasterRecord }
 
 export const UserMaster: React.FC = () => {
-  // Master records state
-  const [records, setRecords] = useState<UserMasterRecord[]>(INITIAL_USERS)
+  // Master records state from live API
+  const [records, setRecords] = useState<ApiUserRecord[]>([])
+  const [summary, setSummary] = useState<UserSummary>({
+    totalUsers: 0,
+    activeUsers: 0,
+    inactiveUsers: 0
+  })
+  const [pagination, setPagination] = useState<UserPagination>({
+    page: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1
+  })
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [stockrooms, setStockrooms] = useState<ApiStockroom[]>([])
 
   // Form states
   const [userName, setUserName] = useState('')
   const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
   const [contactNumber, setContactNumber] = useState('')
+  const [userType, setUserType] = useState<'ADMIN' | 'STOCKROOM'>('STOCKROOM')
+  const [stockroomId, setStockroomId] = useState<number | ''>('')
   const [isStatus, setIsStatus] = useState<'Active' | 'Inactive'>('Active')
   const [showPassword, setShowPassword] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Copied password state for quick feedback
-  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<number | null>(null)
   // Per-row revealed password map
-  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({})
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<number, boolean>>({})
 
   // Form validation errors & notifications
   const [errors, setErrors] = useState<{
@@ -173,6 +81,7 @@ export const UserMaster: React.FC = () => {
     password?: string
     email?: string
     contactNumber?: string
+    stockroomId?: string
   }>({})
   const [notification, setNotification] = useState<{
     type: 'success' | 'error'
@@ -181,25 +90,70 @@ export const UserMaster: React.FC = () => {
 
   // DataTable filtering, sorting & pagination
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortField, setSortField] = useState<SortField>('createdAt')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sortField, setSortField] = useState<UserSortField>('USER_NAME')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  // Metrics summary
-  const totalCount = records.length
-  const activeCount = records.filter((r) => r.isStatus === 'Active').length
-  const inactiveCount = records.filter((r) => r.isStatus === 'Inactive').length
-
-  const showNotification = (type: 'success' | 'error', message: string) => {
+  const showNotification = useCallback((type: 'success' | 'error', message: string) => {
     setNotification({ type, message })
     setTimeout(() => {
       setNotification((prev) => (prev?.message === message ? null : prev))
-    }, 3000)
-  }
+    }, 3500)
+  }, [])
+
+  // Debounce search query to prevent excessive API requests
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Fetch stockrooms for dropdown once on mount
+  useEffect(() => {
+    dashboardService
+      .getStockrooms()
+      .then((data) => {
+        if (data?.length) setStockrooms(data)
+      })
+      .catch((err) => {
+        console.warn('Could not load stockrooms for User Master modal:', err)
+      })
+  }, [])
+
+  // Fetch users from API (GET /api/users)
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const pageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+      const res = await userService.getUsers({
+        page: currentPage,
+        pageSize,
+        sortBy: sortField,
+        sortDesc: sortOrder === 'desc',
+        search: debouncedSearch.trim() || undefined
+      })
+
+      setRecords(res.rows || [])
+      setSummary(res.summary || { totalUsers: 0, activeUsers: 0, inactiveUsers: 0 })
+      setPagination(res.pagination || { page: 1, pageSize, totalRecords: 0, totalPages: 1 })
+    } catch (err: any) {
+      console.error('Error fetching users:', err)
+      showNotification('error', err?.message || 'Failed to fetch users from server.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentPage, rowsPerPage, sortField, sortOrder, debouncedSearch, showNotification])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
 
   // Handle Form Submission (Add or Update)
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const newErrors: {
@@ -207,6 +161,7 @@ export const UserMaster: React.FC = () => {
       password?: string
       email?: string
       contactNumber?: string
+      stockroomId?: string
     } = {}
 
     const cleanUserName = userName.trim()
@@ -220,9 +175,14 @@ export const UserMaster: React.FC = () => {
       newErrors.userName = 'User Name must be at least 3 characters'
     }
 
-    if (!cleanPassword) {
-      newErrors.password = 'Password is required'
-    } else if (cleanPassword.length < 6) {
+    // Password rules: required on create (min 6 chars), optional on update
+    if (!editingId) {
+      if (!cleanPassword) {
+        newErrors.password = 'Password is required'
+      } else if (cleanPassword.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters'
+      }
+    } else if (cleanPassword && cleanPassword.length < 6) {
       newErrors.password = 'Password must be at least 6 characters'
     }
 
@@ -238,6 +198,10 @@ export const UserMaster: React.FC = () => {
       newErrors.contactNumber = 'Please enter a valid contact number'
     }
 
+    if (userType === 'STOCKROOM' && !stockroomId) {
+      newErrors.stockroomId = 'Please select an assigned stockroom'
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       showNotification('error', 'Please correct the errors in the form.')
@@ -245,63 +209,46 @@ export const UserMaster: React.FC = () => {
     }
 
     setErrors({})
-    const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    setIsSubmitting(true)
 
-    if (editingId) {
-      // Check duplicate username for other records
-      const exists = records.some(
-        (r) => r.id !== editingId && r.userName.toLowerCase() === cleanUserName.toLowerCase()
-      )
-      if (exists) {
-        setErrors({ userName: 'A user with this username already exists' })
-        showNotification('error', 'A user with this username already exists.')
-        return
+    try {
+      if (editingId) {
+        // Update user (PUT /api/users/{id})
+        const payload: UpdateUserPayload = {
+          userName: cleanUserName,
+          password: cleanPassword, // Empty string retains existing password
+          email: cleanEmail,
+          contactNumber: cleanContact,
+          userType,
+          stockroomId: userType === 'STOCKROOM' ? Number(stockroomId) : null
+        }
+        const res = await userService.updateUser(editingId, payload)
+        showNotification('success', res.message || `User "${cleanUserName}" updated successfully!`)
+        handleClear()
+        setIsModalOpen(false)
+        await fetchUsers()
+      } else {
+        // Create user (POST /api/users)
+        const payload: CreateUserPayload = {
+          userName: cleanUserName,
+          password: cleanPassword,
+          email: cleanEmail,
+          contactNumber: cleanContact,
+          userType,
+          stockroomId: userType === 'STOCKROOM' ? Number(stockroomId) : null
+        }
+        const res = await userService.createUser(payload)
+        showNotification('success', res.message || `User "${cleanUserName}" created successfully!`)
+        handleClear()
+        setIsModalOpen(false)
+        setCurrentPage(1)
+        await fetchUsers()
       }
-
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.id === editingId
-            ? {
-                ...r,
-                userName: cleanUserName,
-                password: cleanPassword,
-                email: cleanEmail,
-                contactNumber: cleanContact,
-                isStatus,
-                updatedAt: nowFormatted
-              }
-            : r
-        )
-      )
-      showNotification('success', `User "${cleanUserName}" updated successfully!`)
-      handleClear()
-      setIsModalOpen(false)
-    } else {
-      // Check duplicate username
-      const exists = records.some(
-        (r) => r.userName.toLowerCase() === cleanUserName.toLowerCase()
-      )
-      if (exists) {
-        setErrors({ userName: 'A user with this username already exists' })
-        showNotification('error', 'A user with this username already exists.')
-        return
-      }
-
-      const newUser: UserMasterRecord = {
-        id: `usr-${Date.now()}`,
-        userName: cleanUserName,
-        password: cleanPassword,
-        email: cleanEmail,
-        contactNumber: cleanContact,
-        isStatus,
-        createdAt: nowFormatted
-      }
-
-      setRecords((prev) => [newUser, ...prev])
-      showNotification('success', `User "${cleanUserName}" created successfully!`)
-      setCurrentPage(1)
-      handleClear()
-      setIsModalOpen(false)
+    } catch (err: any) {
+      console.error('Error saving user:', err)
+      showNotification('error', err?.message || 'Failed to save user. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -310,6 +257,8 @@ export const UserMaster: React.FC = () => {
     setPassword('')
     setEmail('')
     setContactNumber('')
+    setUserType('STOCKROOM')
+    setStockroomId('')
     setIsStatus('Active')
     setShowPassword(false)
     setEditingId(null)
@@ -323,44 +272,49 @@ export const UserMaster: React.FC = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setEditingId(null)
-    setErrors({})
+    handleClear()
   }
 
-  const handleEdit = (record: UserMasterRecord) => {
-    setEditingId(record.id)
-    setUserName(record.userName)
-    setPassword(record.password)
-    setEmail(record.email)
-    setContactNumber(record.contactNumber)
-    setIsStatus(record.isStatus)
+  const handleEdit = (record: ApiUserRecord) => {
+    setEditingId(record.userId)
+    setUserName(record.userName || '')
+    setPassword('') // Leave empty to retain existing password
+    setEmail(record.email || '')
+    setContactNumber(record.contactNumber || '')
+    setUserType(record.userType || 'STOCKROOM')
+    setStockroomId(record.stockroomId || '')
+    setIsStatus(record.status || 'Active')
     setErrors({})
     setIsModalOpen(true)
   }
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: number, name: string) => {
     if (window.confirm(`Are you sure you want to delete user "${name}"?`)) {
-      setRecords((prev) => prev.filter((r) => r.id !== id))
-      if (editingId === id) handleClear()
-      showNotification('success', `User "${name}" deleted.`)
+      try {
+        const res = await userService.deleteUser(id)
+        showNotification('success', res.message || `User "${name}" deleted.`)
+        if (editingId === id) handleClear()
+        await fetchUsers()
+      } catch (err: any) {
+        console.error('Error deleting user:', err)
+        showNotification('error', err?.message || `Failed to delete user "${name}".`)
+      }
     }
   }
 
-  const handleToggleStatus = (id: string) => {
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              isStatus: r.isStatus === 'Active' ? 'Inactive' : 'Active',
-              updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19)
-            }
-          : r
-      )
-    )
+  const handleToggleStatus = async (id: number) => {
+    try {
+      const res = await userService.toggleStatus(id)
+      showNotification('success', res.message || 'User status updated.')
+      await fetchUsers()
+    } catch (err: any) {
+      console.error('Error toggling status:', err)
+      showNotification('error', err?.message || 'Failed to toggle status.')
+    }
   }
 
-  const handleCopyPassword = (id: string, pass: string) => {
+  const handleCopyPassword = (id: number, pass?: string) => {
+    if (!pass) return
     navigator.clipboard.writeText(pass)
     setCopiedId(id)
     setTimeout(() => {
@@ -368,53 +322,34 @@ export const UserMaster: React.FC = () => {
     }, 2000)
   }
 
-  const toggleRevealRowPassword = (id: string) => {
+  const toggleRevealRowPassword = (id: number) => {
     setRevealedPasswords((prev) => ({
       ...prev,
       [id]: !prev[id]
     }))
   }
 
-  // Sorting
-  const handleSort = (field: SortField) => {
+  // Sorting Handler
+  const handleSort = (field: UserSortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
       setSortField(field)
       setSortOrder('asc')
     }
+    setCurrentPage(1)
   }
 
-  // Filtering & Sorting
-  const filteredRecords = useMemo(() => {
-    return records
-      .filter((r) => {
-        if (!searchQuery.trim()) return true
-        const q = searchQuery.trim().toLowerCase()
-        return (
-          r.userName.toLowerCase().includes(q) ||
-          r.email.toLowerCase().includes(q) ||
-          r.contactNumber.toLowerCase().includes(q) ||
-          r.isStatus.toLowerCase().includes(q)
-        )
-      })
-      .sort((a, b) => {
-        const aVal = a[sortField] || ''
-        const bVal = b[sortField] || ''
-        if (sortOrder === 'asc') return aVal.localeCompare(bVal)
-        return bVal.localeCompare(aVal)
-      })
-  }, [records, searchQuery, sortField, sortOrder])
-
   // Pagination calculations
-  const totalRecords = filteredRecords.length
+  const totalRecords = pagination.totalRecords
   const isAll = rowsPerPage === 'all'
   const effectiveLimit = isAll ? Math.max(totalRecords, 1) : rowsPerPage
-  const totalPages = isAll ? 1 : Math.ceil(totalRecords / effectiveLimit) || 1
+  const totalPages = pagination.totalPages
   const startIndex = isAll ? 0 : (currentPage - 1) * effectiveLimit
-  const paginatedRecords = isAll
-    ? filteredRecords
-    : filteredRecords.slice(startIndex, startIndex + effectiveLimit)
+  const displayStart = totalRecords === 0 ? 0 : startIndex + 1
+  const displayEnd = isAll
+    ? totalRecords
+    : Math.min(startIndex + records.length, totalRecords)
 
   // Generate numbered pages array: 1, 2, 3...
   const getPageNumbers = () => {
@@ -438,12 +373,14 @@ export const UserMaster: React.FC = () => {
 
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
-    const headers = ['User Name', 'Email', 'Contact Number', 'Status']
-    const rows = filteredRecords.map((r) => [
+    const headers = ['User Name', 'User Type', 'Stock Room', 'Email', 'Contact Number', 'Status']
+    const rows = records.map((r) => [
       r.userName,
-      r.email,
-      r.contactNumber,
-      r.isStatus
+      r.userType || '-',
+      r.stockroomName || '-',
+      r.email || '-',
+      r.contactNumber || '-',
+      r.status
     ])
     exportToExcel(
       headers,
@@ -488,17 +425,17 @@ export const UserMaster: React.FC = () => {
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#FAF9F6] dark:bg-[#222222] border border-[#EAE7DF] dark:border-[#2C2C2C] text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
             <User className="w-3.5 h-3.5 text-[#1D63ED]" />
             <span>Total:</span>
-            <span className="font-bold">{totalCount}</span>
+            <span className="font-bold">{summary.totalUsers}</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#059669] text-xs font-semibold text-[#059669] dark:text-[#34D399]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
             <span>Active:</span>
-            <span className="font-bold">{activeCount}</span>
+            <span className="font-bold">{summary.activeUsers}</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#FEF2F2] dark:bg-[#451A1A]/40 border border-[#FECACA] dark:border-[#DC2626] text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
             <span>Inactive:</span>
-            <span className="font-bold">{inactiveCount}</span>
+            <span className="font-bold">{summary.inactiveUsers}</span>
           </div>
           <button
             type="button"
@@ -521,11 +458,8 @@ export const UserMaster: React.FC = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                setCurrentPage(1)
-              }}
-              placeholder="Search username, email, contact, status..."
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search username, email, contact, stockroom..."
               className="w-full bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all"
             />
           </div>
@@ -580,7 +514,7 @@ export const UserMaster: React.FC = () => {
             <thead className="bg-[#FAF9F6] dark:bg-[#232323] border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] text-[11px] font-bold text-[#666666] dark:text-[#A0A0A0] uppercase tracking-wider">
               <tr>
                 <th
-                  onClick={() => handleSort('userName')}
+                  onClick={() => handleSort('USER_NAME')}
                   className="py-2.5 px-3 cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
                 >
                   <div className="flex items-center gap-1.5">
@@ -590,7 +524,23 @@ export const UserMaster: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  onClick={() => handleSort('email')}
+                  onClick={() => handleSort('USER_TYPE')}
+                  className="py-2.5 px-3 cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-[#7C3AED]" />
+                    <span>ROLE / TYPE</span>
+                    <ArrowUpDown className="w-3 h-3 text-[#99958D]" />
+                  </div>
+                </th>
+                <th className="py-2.5 px-3">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-[#00a8e7]" />
+                    <span>STOCK ROOM</span>
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('EMAIL')}
                   className="py-2.5 px-3 cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
                 >
                   <div className="flex items-center gap-1.5">
@@ -600,7 +550,7 @@ export const UserMaster: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  onClick={() => handleSort('contactNumber')}
+                  onClick={() => handleSort('CONTACT_NUMBER')}
                   className="py-2.5 px-3 cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
                 >
                   <div className="flex items-center gap-1.5">
@@ -616,7 +566,7 @@ export const UserMaster: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  onClick={() => handleSort('isStatus')}
+                  onClick={() => handleSort('STATUS')}
                   className="py-2.5 px-3 cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
                 >
                   <div className="flex items-center gap-1.5">
@@ -629,17 +579,45 @@ export const UserMaster: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EAE7DF]/50 dark:divide-[#2C2C2C] text-xs">
-              {paginatedRecords.length === 0 ? (
+            <tbody
+              className={`divide-y divide-[#EAE7DF]/50 dark:divide-[#2C2C2C] text-xs transition-opacity duration-200 ${
+                isLoading ? 'opacity-50' : 'opacity-100'
+              }`}
+            >
+              {records.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-xs text-[#99958D] dark:text-[#737373]">
-                    No user records match your search criteria.
+                  <td
+                    colSpan={8}
+                    className="py-8 text-center text-xs text-[#99958D] dark:text-[#737373]"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                        <span>Loading user records...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-medium">No user records match your criteria.</p>
+                        {debouncedSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery('')
+                              setDebouncedSearch('')
+                            }}
+                            className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                          >
+                            Clear search filter
+                          </button>
+                        )}
+                      </>
+                    )}
                   </td>
                 </tr>
               ) : (
-                paginatedRecords.map((item) => (
+                records.map((item) => (
                   <tr
-                    key={item.id}
+                    key={item.userId}
                     className="hover:bg-[#FAF9F6]/80 dark:hover:bg-[#252525]/50 transition-colors"
                   >
                     {/* User Name */}
@@ -648,15 +626,41 @@ export const UserMaster: React.FC = () => {
                         <div className="w-6 h-6 rounded-full bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 text-[#1D63ED] flex items-center justify-center text-[10px] font-bold uppercase">
                           {item.userName.slice(0, 2)}
                         </div>
-                        <span>{item.userName}</span>
+                        <span className="font-bold">{item.userName}</span>
                       </div>
+                    </td>
+
+                    {/* Role / Type Badge */}
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border ${
+                          item.userType === 'ADMIN'
+                            ? 'bg-[#F3E8FF] dark:bg-[#581C87]/30 text-[#7C3AED] dark:text-[#C084FC] border-[#E9D5FF] dark:border-[#7C3AED]'
+                            : 'bg-[#EFF6FF] dark:bg-[#1E3A8A]/30 text-[#1D63ED] dark:text-[#60A5FA] border-[#DBEAFE] dark:border-[#1D63ED]'
+                        }`}
+                      >
+                        <Shield className="w-3 h-3" />
+                        <span>{item.userType || 'STOCKROOM'}</span>
+                      </span>
+                    </td>
+
+                    {/* Stock Room */}
+                    <td className="py-2 px-3 text-[#555555] dark:text-[#B0B0B0] whitespace-nowrap">
+                      {item.stockroomName ? (
+                        <div className="flex items-center gap-1.5 max-w-[200px]" title={item.stockroomName}>
+                          <Building2 className="w-3.5 h-3.5 text-[#00a8e7] shrink-0" />
+                          <span className="truncate font-medium text-[11.5px]">{item.stockroomName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[#99958D] text-xs font-mono">-</span>
+                      )}
                     </td>
 
                     {/* Email */}
                     <td className="py-2 px-3 text-[#555555] dark:text-[#B0B0B0] whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <Mail className="w-3 h-3 text-[#99958D] shrink-0" />
-                        <span className="font-mono text-[11.5px]">{item.email}</span>
+                        <span className="font-mono text-[11.5px]">{item.email || '-'}</span>
                       </div>
                     </td>
 
@@ -664,7 +668,9 @@ export const UserMaster: React.FC = () => {
                     <td className="py-2 px-3 text-[#555555] dark:text-[#B0B0B0] whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <Phone className="w-3 h-3 text-[#99958D] shrink-0" />
-                        <span className="font-mono text-[11.5px] tabular-nums">{item.contactNumber}</span>
+                        <span className="font-mono text-[11.5px] tabular-nums">
+                          {item.contactNumber || '-'}
+                        </span>
                       </div>
                     </td>
 
@@ -672,27 +678,38 @@ export const UserMaster: React.FC = () => {
                     <td className="py-2 px-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-[11.5px] text-[#171717] dark:text-[#EDEDED] bg-[#FAF9F6] dark:bg-[#181818] px-2 py-0.5 rounded-md border border-[#EAE7DF] dark:border-[#333333]">
-                          {revealedPasswords[item.id] ? item.password : '••••••••'}
+                          {revealedPasswords[item.userId] ? item.password || '••••••••' : '••••••••'}
                         </span>
+                        <div className="relative inline-flex items-center group/pw-tip">
+                          <button
+                            type="button"
+                            onClick={() => toggleRevealRowPassword(item.userId)}
+                            className="p-1 rounded text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer active:scale-95"
+                            aria-label={revealedPasswords[item.userId] ? 'Hide password' : 'Show password'}
+                          >
+                            {revealedPasswords[item.userId] ? (
+                              <EyeOff className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 opacity-0 invisible group-hover/pw-tip:opacity-100 group-hover/pw-tip:visible scale-90 group-hover/pw-tip:scale-100 translate-y-1 group-hover/pw-tip:translate-y-0 transition-all duration-200 ease-out flex flex-col items-center drop-shadow-lg"
+                          >
+                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
+                              {revealedPasswords[item.userId] ? 'Hide password' : 'Show password'}
+                            </div>
+                            <div className="w-1.5 h-1.5 -mt-0.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => toggleRevealRowPassword(item.id)}
-                          className="p-1 rounded text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
-                          title={revealedPasswords[item.id] ? 'Hide password' : 'Show password'}
-                        >
-                          {revealedPasswords[item.id] ? (
-                            <EyeOff className="w-3 h-3" />
-                          ) : (
-                            <Eye className="w-3 h-3" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPassword(item.id, item.password)}
+                          onClick={() => handleCopyPassword(item.userId, item.password)}
                           className="p-1 rounded text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
                           title="Copy password to clipboard"
                         >
-                          {copiedId === item.id ? (
+                          {copiedId === item.userId ? (
                             <Check className="w-3 h-3 text-[#059669]" />
                           ) : (
                             <Copy className="w-3 h-3" />
@@ -705,9 +722,9 @@ export const UserMaster: React.FC = () => {
                     <td className="py-2 px-3 whitespace-nowrap">
                       <button
                         type="button"
-                        onClick={() => handleToggleStatus(item.id)}
+                        onClick={() => handleToggleStatus(item.userId)}
                         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all cursor-pointer ${
-                          item.isStatus === 'Active'
+                          item.status === 'Active'
                             ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
                             : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
                         }`}
@@ -715,12 +732,12 @@ export const UserMaster: React.FC = () => {
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            item.isStatus === 'Active'
+                            item.status === 'Active'
                               ? 'bg-[#059669] dark:bg-[#34D399]'
                               : 'bg-[#DC2626] dark:bg-[#F87171]'
                           }`}
                         />
-                        <span>{item.isStatus}</span>
+                        <span>{item.status}</span>
                       </button>
                     </td>
 
@@ -729,9 +746,9 @@ export const UserMaster: React.FC = () => {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => handleToggleStatus(item.id)}
+                          onClick={() => handleToggleStatus(item.userId)}
                           className="p-1 rounded-md text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer"
-                          title={`Toggle status to ${item.isStatus === 'Active' ? 'Inactive' : 'Active'}`}
+                          title={`Toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`}
                         >
                           <Power className="w-3.5 h-3.5" />
                         </button>
@@ -747,7 +764,7 @@ export const UserMaster: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => handleDelete(item.id, item.userName)}
+                          onClick={() => handleDelete(item.userId, item.userName)}
                           className="p-1 rounded-md text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#451A1A]/40 transition-colors cursor-pointer"
                           title="Delete User"
                         >
@@ -762,66 +779,50 @@ export const UserMaster: React.FC = () => {
           </table>
         </div>
 
-        {/* Table Pagination Footer with 1, 2, 3... */}
+        {/* Table Pagination Footer */}
         <div className="px-3 py-1.5 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex items-center justify-between text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
           <div>
             <span>
               Showing{' '}
               <strong className="text-[#171717] dark:text-[#EDEDED]">
-                {totalRecords === 0 ? 0 : startIndex + 1}
+                {totalRecords === 0 ? 0 : displayStart}
               </strong>{' '}
               to{' '}
-              <strong className="text-[#171717] dark:text-[#EDEDED]">
-                {isAll
-                  ? totalRecords
-                  : Math.min(startIndex + (effectiveLimit as number), totalRecords)}
-              </strong>{' '}
-              of{' '}
-              <strong className="text-[#171717] dark:text-[#EDEDED]">
-                {totalRecords}
-              </strong>{' '}
-              records
+              <strong className="text-[#171717] dark:text-[#EDEDED]">{displayEnd}</strong> of{' '}
+              <strong className="text-[#171717] dark:text-[#EDEDED]">{totalRecords}</strong> records
             </span>
           </div>
 
           <div className="flex items-center gap-1">
-            {/* Prev Button */}
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1 || isAll}
-              className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
               title="Previous page"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
 
-            {/* Numbered Page Buttons: 1, 2, 3... */}
-            {getPageNumbers().map((page, idx) => {
-              if (page === '...') {
+            {getPageNumbers().map((pageNum, idx) => {
+              if (pageNum === '...') {
                 return (
-                  <span
-                    key={`ellipsis-${idx}`}
-                    className="px-1 text-[11px] text-[#99958D] font-bold select-none"
-                  >
+                  <span key={`ellipsis-${idx}`} className="px-1 text-[#99958D]">
                     ...
                   </span>
                 )
               }
-
-              const pageNum = Number(page)
-              const isActive = pageNum === currentPage
-
+              const isActive = currentPage === pageNum
               return (
                 <button
                   key={`page-${pageNum}`}
                   type="button"
-                  onClick={() => !isAll && setCurrentPage(pageNum)}
+                  onClick={() => !isAll && setCurrentPage(Number(pageNum))}
                   disabled={isAll}
-                  className={`min-w-6 h-6 px-1.5 flex items-center justify-center rounded-lg text-xs font-semibold select-none transition-colors cursor-pointer ${
+                  className={`min-w-7 h-7 px-2 flex items-center justify-center rounded-xl text-xs font-semibold select-none transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-[#171717] dark:bg-white text-white dark:text-[#171717] font-bold shadow-xs'
-                      : 'border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:border-[#171717]/40 dark:hover:border-white/40'
+                      ? 'bg-[#171717] text-white dark:bg-white dark:text-[#171717]'
+                      : 'border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#F3F1EA] dark:hover:bg-[#2C2C2C]'
                   }`}
                 >
                   {pageNum}
@@ -829,12 +830,11 @@ export const UserMaster: React.FC = () => {
               )
             })}
 
-            {/* Next Button */}
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages || isAll}
-              className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              disabled={currentPage >= totalPages || isAll}
+              className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
               title="Next page"
             >
               <ChevronRight className="w-3.5 h-3.5" />
@@ -850,11 +850,11 @@ export const UserMaster: React.FC = () => {
           onClick={handleCloseModal}
         >
           <div
-            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323]">
+            <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323] sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
                   {editingId ? <Edit2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
@@ -865,8 +865,8 @@ export const UserMaster: React.FC = () => {
                   </h3>
                   <p className="text-xs text-[#99958D] dark:text-[#888888] mt-0.5">
                     {editingId
-                      ? 'Modify credentials, contact info, and active status.'
-                      : 'Create a new user account with system credentials.'}
+                      ? 'Modify credentials, role, contact info, and assigned stockroom.'
+                      : 'Create a new user account with system credentials and assigned stockroom.'}
                   </p>
                 </div>
               </div>
@@ -883,6 +883,81 @@ export const UserMaster: React.FC = () => {
 
             {/* Modal Form */}
             <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 sm:space-y-5">
+              {/* Row 1: User Type & Stock Room Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#2F2F2F]">
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                    User Role / Type <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 h-10">
+                    <button
+                      type="button"
+                      onClick={() => setUserType('STOCKROOM')}
+                      className={`flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        userType === 'STOCKROOM'
+                          ? 'bg-[#1D63ED] text-white border-[#1D63ED] shadow-xs'
+                          : 'bg-white dark:bg-[#222] text-[#666] dark:text-[#AAA] border-[#EAE7DF] dark:border-[#333]'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>STOCKROOM</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserType('ADMIN')
+                        setStockroomId('')
+                        if (errors.stockroomId) setErrors((prev) => ({ ...prev, stockroomId: undefined }))
+                      }}
+                      className={`flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        userType === 'ADMIN'
+                          ? 'bg-[#7C3AED] text-white border-[#7C3AED] shadow-xs'
+                          : 'bg-white dark:bg-[#222] text-[#666] dark:text-[#AAA] border-[#EAE7DF] dark:border-[#333]'
+                      }`}
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>ADMIN</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stock Room Dropdown (active when userType === STOCKROOM) */}
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                    Assigned Stock Room {userType === 'STOCKROOM' && <span className="text-[#DC2626]">*</span>}
+                  </label>
+                  <div className="relative">
+                    <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
+                    <select
+                      disabled={userType === 'ADMIN'}
+                      value={stockroomId}
+                      onChange={(e) => {
+                        setStockroomId(e.target.value ? Number(e.target.value) : '')
+                        if (errors.stockroomId) setErrors((prev) => ({ ...prev, stockroomId: undefined }))
+                      }}
+                      className={`w-full bg-white dark:bg-[#222] border rounded-xl pl-10 pr-3.5 py-2 text-xs sm:text-sm text-[#171717] dark:text-[#EDEDED] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
+                        userType === 'ADMIN' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      } ${
+                        errors.stockroomId
+                          ? 'border-[#DC2626] dark:border-[#DC2626]'
+                          : 'border-[#EAE7DF] dark:border-[#333333]'
+                      }`}
+                    >
+                      <option value="">{userType === 'ADMIN' ? 'Not Applicable (Admin)' : 'Select Stock Room...'}</option>
+                      {stockrooms.map((s) => (
+                        <option key={s.stockroomId} value={s.stockroomId}>
+                          {s.stockroomName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {errors.stockroomId && (
+                    <p className="mt-1 text-xs font-medium text-[#DC2626]">{errors.stockroomId}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2: User Name & Password */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* [USER_NAME] */}
                 <div>
@@ -898,7 +973,7 @@ export const UserMaster: React.FC = () => {
                         setUserName(e.target.value)
                         if (errors.userName) setErrors((prev) => ({ ...prev, userName: undefined }))
                       }}
-                      placeholder="e.g. rohan.gupta"
+                      placeholder="e.g. karthik.iyer"
                       className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
                         errors.userName
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
@@ -913,9 +988,16 @@ export const UserMaster: React.FC = () => {
 
                 {/* [PASSWORD] */}
                 <div>
-                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
-                    Password <span className="text-[#DC2626]">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider">
+                      Password {!editingId && <span className="text-[#DC2626]">*</span>}
+                    </label>
+                    {editingId && (
+                      <span className="text-[10.5px] text-[#99958D] dark:text-[#888]">
+                        Optional on edit
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
                     <input
@@ -925,7 +1007,7 @@ export const UserMaster: React.FC = () => {
                         setPassword(e.target.value)
                         if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
                       }}
-                      placeholder="••••••••"
+                      placeholder={editingId ? 'Leave empty to keep existing password' : '•••••••• (min. 6 characters)'}
                       className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-10 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
                         errors.password
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
@@ -947,7 +1029,7 @@ export const UserMaster: React.FC = () => {
                 </div>
               </div>
 
-              {/* [EMAIL] & [CONTACT_NUMBER] */}
+              {/* Row 3: Email & Contact Number */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* [EMAIL] */}
                 <div>
@@ -963,7 +1045,7 @@ export const UserMaster: React.FC = () => {
                         setEmail(e.target.value)
                         if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
                       }}
-                      placeholder="e.g. user@wipro.com"
+                      placeholder="e.g. karthik.iyer@wipro.com"
                       className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
                         errors.email
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
@@ -991,7 +1073,7 @@ export const UserMaster: React.FC = () => {
                         if (errors.contactNumber)
                           setErrors((prev) => ({ ...prev, contactNumber: undefined }))
                       }}
-                      placeholder="e.g. +91 98450 12345"
+                      placeholder="e.g. +91 98461 23456"
                       className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
                         errors.contactNumber
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
@@ -1007,36 +1089,19 @@ export const UserMaster: React.FC = () => {
                 </div>
               </div>
 
-              {/* [IS_STATUS] */}
+              {/* Row 4: Status Indicator (informative) */}
               <div>
                 <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
-                  Status
+                  Initial Account Status
                 </label>
-                <div className="grid grid-cols-2 gap-3 h-11">
-                  <button
-                    type="button"
-                    onClick={() => setIsStatus('Active')}
-                    className={`flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
-                      isStatus === 'Active'
-                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] shadow-xs dark:bg-[#064E3B] dark:text-[#34D399] dark:border-[#059669]'
-                        : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
-                    }`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
-                    <span>Active</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsStatus('Inactive')}
-                    className={`flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
-                      isStatus === 'Inactive'
-                        ? 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] shadow-xs dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
-                        : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
-                    }`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
-                    <span>Inactive</span>
-                  </button>
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
+                  <span className="text-xs font-semibold text-[#059669] dark:text-[#34D399]">
+                    {editingId ? isStatus : 'Active by default upon creation'}
+                  </span>
+                  <span className="text-[11px] text-[#99958D] dark:text-[#777] ml-auto">
+                    (Can be toggled anytime from the table)
+                  </span>
                 </div>
               </div>
 
@@ -1044,16 +1109,23 @@ export const UserMaster: React.FC = () => {
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={handleCloseModal}
-                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  {editingId ? (
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editingId ? (
                     <>
                       <Check className="w-4 h-4 stroke-[2.5]" />
                       <span>Update User</span>

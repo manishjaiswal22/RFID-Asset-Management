@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { User, Lock, Eye, EyeOff, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { authService } from '../services/authService'
+import type { AuthUser } from '../types/auth'
 
 interface LoginFormProps {
-  onLoginSuccess?: (username: string) => void
+  onLoginSuccess?: (username: string, user?: AuthUser) => void
 }
 
 interface AlertState {
@@ -21,8 +23,8 @@ const WIPRO_MINI_DOTS = [
 ]
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isUsernameFocused, setIsUsernameFocused] = useState(false)
@@ -70,28 +72,39 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
 
     setIsLoading(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 750))
+    try {
+      const result = await authService.login({
+        userName: username.trim(),
+        password,
+      })
 
-    setIsLoading(false)
+      setIsLoading(false)
 
-    if (username.trim().toLowerCase() !== 'admin' || password !== 'admin123') {
+      if (!result.success) {
+        setAlert({
+          type: 'error',
+          message: result.message || 'Invalid Username or Password.'
+        })
+        return
+      }
+
+      setAlert({
+        type: 'success',
+        message: result.message || 'Login Successful.'
+      })
+
+      setTimeout(() => {
+        if (onLoginSuccess) {
+          onLoginSuccess(result.user?.userName || username, result.user)
+        }
+      }, 700)
+    } catch {
+      setIsLoading(false)
       setAlert({
         type: 'error',
-        message: 'Invalid Username or Password.'
+        message: 'An unexpected error occurred during login.'
       })
-      return
     }
-
-    setAlert({
-      type: 'success',
-      message: 'Login Successful.'
-    })
-
-    setTimeout(() => {
-      if (onLoginSuccess) {
-        onLoginSuccess(username)
-      }
-    }, 700)
   }
 
   const isUsernameFloating = isUsernameFocused || username.length > 0
@@ -148,13 +161,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-7 sm:space-y-8">
+        <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-7 sm:space-y-8">
           <div>
             <div className="relative">
               <input
                 id="username"
                 type="text"
-                autoComplete="username"
+                autoComplete="off"
                 disabled={isLoading}
                 value={username}
                 onFocus={() => setIsUsernameFocused(true)}
@@ -206,7 +219,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
+                autoComplete="new-password"
                 disabled={isLoading}
                 value={password}
                 onFocus={() => setIsPasswordFocused(true)}

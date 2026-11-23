@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Building2,
   User,
@@ -15,139 +15,55 @@ import {
   Trash2,
   Check,
   Power,
-  X
+  X,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react'
 import { exportToExcel } from '../utils/excelExport'
-
-export interface StockRoomMasterRecord {
-  id: string
-  stockRoomName: string
-  stockRoomEngineer: string
-  stockRoomLead: string
-  status: 'Active' | 'Inactive'
-  createdAt: string
-  updatedAt?: string
-}
-
-const INITIAL_STOCK_ROOMS: StockRoomMasterRecord[] = [
-  {
-    id: 'srm-1',
-    stockRoomName: 'IND-AND-VIZAG-S1-1F-NO WING-UI',
-    stockRoomEngineer: 'Manoj Sharma',
-    stockRoomLead: 'Suresh Nair',
-    status: 'Active',
-    createdAt: '2026-11-15 09:30:00'
-  },
-  {
-    id: 'srm-2',
-    stockRoomName: 'IND-DEL-GDC- NO Tower-3F-AW-U',
-    stockRoomEngineer: 'Ananya Verma',
-    stockRoomLead: 'Vikram Patel',
-    status: 'Active',
-    createdAt: '2026-11-16 11:20:00'
-  },
-  {
-    id: 'srm-3',
-    stockRoomName: 'IND-DEL-GURG-CANDOR-6F-NO Wing',
-    stockRoomEngineer: 'Rohan Gupta',
-    stockRoomLead: 'Vikram Patel',
-    status: 'Active',
-    createdAt: '2026-11-16 14:45:00'
-  },
-  {
-    id: 'srm-4',
-    stockRoomName: 'IND-Gujarat-Ahmedabad-GIFT City',
-    stockRoomEngineer: 'Pooja Mehta',
-    stockRoomLead: 'Amit Shah',
-    status: 'Active',
-    createdAt: '2026-11-17 10:15:00'
-  },
-  {
-    id: 'srm-5',
-    stockRoomName: 'IND-HAR-GGN-Alight Gurugram-T2-GF',
-    stockRoomEngineer: 'Deepak Yadav',
-    stockRoomLead: 'Suresh Nair',
-    status: 'Inactive',
-    createdAt: '2026-11-17 16:30:00'
-  },
-  {
-    id: 'srm-6',
-    stockRoomName: 'IND-HAR-GGN-SEZ INFOSPACE-T1-FF',
-    stockRoomEngineer: 'Kavita Reddy',
-    stockRoomLead: 'Amit Shah',
-    status: 'Active',
-    createdAt: '2026-11-18 09:10:00'
-  },
-  {
-    id: 'srm-7',
-    stockRoomName: 'IND-KAR-BLR-ECITY-PH1-Tower 5',
-    stockRoomEngineer: 'Karthik Iyer',
-    stockRoomLead: 'Priyanka Joshi',
-    status: 'Active',
-    createdAt: '2026-11-18 13:00:00'
-  },
-  {
-    id: 'srm-8',
-    stockRoomName: 'IND-MAH-PUN-HINJEWADI-PH2-Bldg B',
-    stockRoomEngineer: 'Sachin Deshmukh',
-    stockRoomLead: 'Priyanka Joshi',
-    status: 'Active',
-    createdAt: '2026-11-19 11:40:00'
-  },
-  {
-    id: 'srm-9',
-    stockRoomName: 'IND-TAM-CHN-SHOLINGANALLUR-SEZ',
-    stockRoomEngineer: 'Ravi Chandran',
-    stockRoomLead: 'Suresh Nair',
-    status: 'Active',
-    createdAt: '2026-11-19 15:25:00'
-  },
-  {
-    id: 'srm-10',
-    stockRoomName: 'IND-TEL-HYD-GACHIBOWLI-Tower 3',
-    stockRoomEngineer: 'Naveen Kumar',
-    stockRoomLead: 'Amit Shah',
-    status: 'Active',
-    createdAt: '2026-11-20 10:05:00'
-  },
-  {
-    id: 'srm-11',
-    stockRoomName: 'IND-KAR-BLR-KOD-S1-GF-NO WING-IV',
-    stockRoomEngineer: 'Swati Pillai',
-    stockRoomLead: 'Priyanka Joshi',
-    status: 'Active',
-    createdAt: '2026-11-20 13:40:00'
-  },
-  {
-    id: 'srm-12',
-    stockRoomName: 'IND-HAR-Gurugram-Blackstone-ONYX-2F',
-    stockRoomEngineer: 'Manoj Sharma',
-    stockRoomLead: 'Vikram Patel',
-    status: 'Active',
-    createdAt: '2026-11-20 15:15:00'
-  }
-]
-
-type SortField = 'stockRoomName' | 'stockRoomEngineer' | 'stockRoomLead' | 'status' | 'createdAt'
-type SortOrder = 'asc' | 'desc'
+import { stockroomService } from '../services/stockroomService'
+import type {
+  ApiStockroomMasterRecord,
+  StockroomMasterSummary,
+  StockroomMasterPagination,
+  StockroomSortField
+} from '../types/stockroomMaster'
 
 export const StoreMaster: React.FC = () => {
-  // Master records list
-  const [records, setRecords] = useState<StockRoomMasterRecord[]>(INITIAL_STOCK_ROOMS)
+  // Master records list & API metadata
+  const [records, setRecords] = useState<ApiStockroomMasterRecord[]>([])
+  const [summary, setSummary] = useState<StockroomMasterSummary>({
+    totalStockRooms: 0,
+    activeStockRooms: 0,
+    inactiveStockRooms: 0
+  })
+  const [pagination, setPagination] = useState<StockroomMasterPagination>({
+    page: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1
+  })
+
+  // Loading states
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null)
 
   // Form input states
-  const [stockRoomName, setStockRoomName] = useState('')
-  const [stockRoomEngineer, setStockRoomEngineer] = useState('')
-  const [stockRoomLead, setStockRoomLead] = useState('')
+  const [stockroomName, setStockroomName] = useState('')
+  const [stockroomEngineer, setStockroomEngineer] = useState('')
+  const [stockroomLead, setStockroomLead] = useState('')
   const [status, setStatus] = useState<'Active' | 'Inactive'>('Active')
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingRecord, setEditingRecord] = useState<ApiStockroomMasterRecord | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Validation errors & feedback banner
+  // Delete confirmation dialog state
+  const [deletingRecord, setDeletingRecord] = useState<ApiStockroomMasterRecord | null>(null)
+
+  // Validation errors & feedback notification
   const [errors, setErrors] = useState<{
-    stockRoomName?: string
-    stockRoomEngineer?: string
-    stockRoomLead?: string
+    stockroomName?: string
+    stockroomEngineer?: string
+    stockroomLead?: string
   }>({})
   const [notification, setNotification] = useState<{
     type: 'success' | 'error'
@@ -156,108 +72,67 @@ export const StoreMaster: React.FC = () => {
 
   // DataTable filtering, sorting & pagination
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortField, setSortField] = useState<SortField>('createdAt')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sortField, setSortField] = useState<StockroomSortField>('STOCKROOM')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
-
-  // Metrics summary
-  const totalCount = records.length
-  const activeCount = records.filter((r) => r.status === 'Active').length
-  const inactiveCount = records.filter((r) => r.status === 'Inactive').length
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message })
     setTimeout(() => {
       setNotification((prev) => (prev?.message === message ? null : prev))
-    }, 3000)
+    }, 3500)
   }
 
-  // Handle Form Submission (Add or Update)
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const newErrors: {
-      stockRoomName?: string
-      stockRoomEngineer?: string
-      stockRoomLead?: string
-    } = {}
-
-    if (!stockRoomName.trim()) {
-      newErrors.stockRoomName = 'Stock Room name is required'
-    }
-    if (!stockRoomEngineer.trim()) {
-      newErrors.stockRoomEngineer = 'Stockroom Engineer is required'
-    }
-    if (!stockRoomLead.trim()) {
-      newErrors.stockRoomLead = 'Stockroom Lead is required'
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
-      showNotification('error', 'Please fill in all required fields.')
-      return
-    }
-
-    setErrors({})
-
-    const nowFormatted = new Date().toISOString().replace('T', ' ').slice(0, 19)
-
-    if (editingId) {
-      // Update existing record
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.id === editingId
-            ? {
-                ...r,
-                stockRoomName: stockRoomName.trim(),
-                stockRoomEngineer: stockRoomEngineer.trim(),
-                stockRoomLead: stockRoomLead.trim(),
-                status,
-                updatedAt: nowFormatted
-              }
-            : r
-        )
-      )
-      showNotification('success', `Stock Room "${stockRoomName.trim()}" updated successfully!`)
-      setEditingId(null)
-    } else {
-      // Check duplicate name
-      const exists = records.some(
-        (r) => r.stockRoomName.toLowerCase() === stockRoomName.trim().toLowerCase()
-      )
-      if (exists) {
-        setErrors({ stockRoomName: 'A stock room with this name already exists' })
-        showNotification('error', 'A stock room with this name already exists.')
-        return
-      }
-
-      // Add new record at top
-      const newRecord: StockRoomMasterRecord = {
-        id: `srm-${Date.now()}`,
-        stockRoomName: stockRoomName.trim(),
-        stockRoomEngineer: stockRoomEngineer.trim(),
-        stockRoomLead: stockRoomLead.trim(),
-        status,
-        createdAt: nowFormatted
-      }
-
-      setRecords((prev) => [newRecord, ...prev])
-      showNotification('success', `Stock Room "${stockRoomName.trim()}" created successfully!`)
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
       setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Fetch stock rooms from backend API
+  const fetchStockrooms = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+      const data = await stockroomService.getStockrooms({
+        page: currentPage,
+        pageSize: numericPageSize,
+        sortBy: sortField,
+        sortDesc: sortOrder === 'desc',
+        search: debouncedSearch.trim() || undefined
+      })
+
+      setRecords(data.rows || [])
+      if (data.summary) {
+        setSummary(data.summary)
+      }
+      if (data.pagination) {
+        setPagination(data.pagination)
+      }
+    } catch (err: any) {
+      console.error('Failed to load stock room records', err)
+      showNotification('error', err.message || 'Failed to load stock rooms.')
+    } finally {
+      setIsLoading(false)
     }
+  }, [currentPage, rowsPerPage, sortField, sortOrder, debouncedSearch])
 
-    // Reset Form & close modal
-    handleClear()
-    setIsModalOpen(false)
-  }
+  useEffect(() => {
+    fetchStockrooms()
+  }, [fetchStockrooms])
 
+  // Form Reset
   const handleClear = () => {
-    setStockRoomName('')
-    setStockRoomEngineer('')
-    setStockRoomLead('')
+    setStockroomName('')
+    setStockroomEngineer('')
+    setStockroomLead('')
     setStatus('Active')
-    setEditingId(null)
+    setEditingRecord(null)
     setErrors({})
   }
 
@@ -267,83 +142,160 @@ export const StoreMaster: React.FC = () => {
   }
 
   const handleCloseModal = () => {
+    if (isSubmitting) return
     setIsModalOpen(false)
-    setEditingId(null)
-    setErrors({})
+    handleClear()
   }
 
-  const handleEdit = (record: StockRoomMasterRecord) => {
-    setEditingId(record.id)
-    setStockRoomName(record.stockRoomName)
-    setStockRoomEngineer(record.stockRoomEngineer)
-    setStockRoomLead(record.stockRoomLead)
+  const handleEdit = (record: ApiStockroomMasterRecord) => {
+    setEditingRecord(record)
+    setStockroomName(record.stockroomName)
+    setStockroomEngineer(record.stockroomEngineer)
+    setStockroomLead(record.stockroomLead)
     setStatus(record.status)
     setErrors({})
     setIsModalOpen(true)
   }
 
-  const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
-      setRecords((prev) => prev.filter((r) => r.id !== id))
-      if (editingId === id) handleClear()
-      showNotification('success', `Stock Room "${name}" deleted.`)
+  // Handle Form Submission (Add or Update via API)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const newErrors: {
+      stockroomName?: string
+      stockroomEngineer?: string
+      stockroomLead?: string
+    } = {}
+
+    if (!stockroomName.trim()) {
+      newErrors.stockroomName = 'Stock Room name is required'
+    }
+    if (!stockroomEngineer.trim()) {
+      newErrors.stockroomEngineer = 'Stockroom Engineer is required'
+    }
+    if (!stockroomLead.trim()) {
+      newErrors.stockroomLead = 'Stockroom Lead is required'
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      showNotification('error', 'Please fill in all required fields.')
+      return
+    }
+
+    setErrors({})
+    setIsSubmitting(true)
+
+    try {
+      if (editingRecord) {
+        // Edit existing stock room via PUT /api/stockrooms/{id}
+        const res = await stockroomService.updateStockroom(editingRecord.stockroomId, {
+          stockroomName: stockroomName.trim(),
+          stockroomEngineer: stockroomEngineer.trim(),
+          stockroomLead: stockroomLead.trim()
+        })
+
+        // If status was changed in the modal, sync via toggle-status
+        if (editingRecord.status !== status) {
+          try {
+            await stockroomService.toggleStatus(editingRecord.stockroomId)
+          } catch (statusErr) {
+            console.warn('Could not update status toggle:', statusErr)
+          }
+        }
+
+        showNotification('success', res.message || `Stock Room "${stockroomName.trim()}" updated successfully!`)
+        setIsModalOpen(false)
+        handleClear()
+        await fetchStockrooms()
+      } else {
+        // Add new stock room via POST /api/stockrooms
+        const res = await stockroomService.addStockroom({
+          stockroomName: stockroomName.trim(),
+          stockroomEngineer: stockroomEngineer.trim(),
+          stockroomLead: stockroomLead.trim()
+        })
+
+        // If status was set to Inactive on creation, toggle it
+        if (status === 'Inactive' && res.stockroomId) {
+          try {
+            await stockroomService.toggleStatus(res.stockroomId)
+          } catch (statusErr) {
+            console.warn('Could not toggle initial inactive status:', statusErr)
+          }
+        }
+
+        showNotification('success', res.message || `Stock Room "${stockroomName.trim()}" created successfully!`)
+        setIsModalOpen(false)
+        handleClear()
+        setCurrentPage(1)
+        await fetchStockrooms()
+      }
+    } catch (err: any) {
+      console.error('Failed to save stock room:', err)
+      showNotification('error', err.message || 'Failed to save stock room. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleToggleStatus = (id: string) => {
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              status: r.status === 'Active' ? 'Inactive' : 'Active',
-              updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19)
-            }
-          : r
+  // Handle Toggle Active/Inactive via PATCH /api/stockrooms/{id}/toggle-status
+  const handleToggleStatus = async (record: ApiStockroomMasterRecord) => {
+    setActionLoadingId(record.stockroomId)
+    try {
+      const res = await stockroomService.toggleStatus(record.stockroomId)
+      showNotification(
+        'success',
+        res.message || `Status updated for "${record.stockroomName}"`
       )
-    )
+      await fetchStockrooms()
+    } catch (err: any) {
+      console.error('Failed to toggle status:', err)
+      showNotification('error', err.message || 'Failed to toggle status.')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  // Handle Delete via DELETE /api/stockrooms/{id}
+  const confirmDelete = async () => {
+    if (!deletingRecord) return
+    const { stockroomId, stockroomName } = deletingRecord
+    setActionLoadingId(stockroomId)
+    try {
+      const res = await stockroomService.deleteStockroom(stockroomId)
+      showNotification('success', res.message || `Stock Room "${stockroomName}" deleted.`)
+      setDeletingRecord(null)
+      await fetchStockrooms()
+    } catch (err: any) {
+      console.error('Failed to delete stock room:', err)
+      showNotification('error', err.message || 'Failed to delete stock room.')
+    } finally {
+      setActionLoadingId(null)
+    }
   }
 
   // Sorting Handler
-  const handleSort = (field: SortField) => {
+  const handleSort = (field: StockroomSortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
     } else {
       setSortField(field)
       setSortOrder('asc')
     }
+    setCurrentPage(1)
   }
 
-  // Filter & Sort
-  const filteredRecords = useMemo(() => {
-    return records
-      .filter((r) => {
-        if (!searchQuery.trim()) return true
-        const q = searchQuery.trim().toLowerCase()
-        return (
-          r.stockRoomName.toLowerCase().includes(q) ||
-          r.stockRoomEngineer.toLowerCase().includes(q) ||
-          r.stockRoomLead.toLowerCase().includes(q) ||
-          r.status.toLowerCase().includes(q)
-        )
-      })
-      .sort((a, b) => {
-        const aVal = a[sortField] || ''
-        const bVal = b[sortField] || ''
-        if (sortOrder === 'asc') return aVal.localeCompare(bVal)
-        return bVal.localeCompare(aVal)
-      })
-  }, [records, searchQuery, sortField, sortOrder])
-
-  // Pagination calculations
-  const totalRecords = filteredRecords.length
+  // Pagination calculations from server
+  const totalRecords = pagination.totalRecords
   const isAll = rowsPerPage === 'all'
   const effectiveLimit = isAll ? Math.max(totalRecords, 1) : rowsPerPage
-  const totalPages = isAll ? 1 : Math.ceil(totalRecords / effectiveLimit) || 1
+  const totalPages = pagination.totalPages
   const startIndex = isAll ? 0 : (currentPage - 1) * effectiveLimit
-  const paginatedRecords = isAll
-    ? filteredRecords
-    : filteredRecords.slice(startIndex, startIndex + effectiveLimit)
+  const displayStart = totalRecords === 0 ? 0 : startIndex + 1
+  const displayEnd = isAll
+    ? totalRecords
+    : Math.min(startIndex + records.length, totalRecords)
 
   // Generate numbered pages array: 1, 2, 3...
   const getPageNumbers = () => {
@@ -365,21 +317,42 @@ export const StoreMaster: React.FC = () => {
     return pages
   }
 
-  // Export to Excel (.xlsx)
-  const handleExportExcel = () => {
-    const headers = ['Stock Room', 'Stockroom Engineer', 'Stockroom Lead', 'Status']
-    const rows = filteredRecords.map((r) => [
-      r.stockRoomName,
-      r.stockRoomEngineer,
-      r.stockRoomLead,
-      r.status
-    ])
-    exportToExcel(
-      headers,
-      rows,
-      `stock_room_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      'Stock Rooms'
-    )
+  // Export to Excel (.xlsx) using current table rows or fetching all
+  const handleExportExcel = async () => {
+    try {
+      // Fetch all records for export if currently paginated
+      let exportRows = records
+      if (pagination.totalRecords > records.length) {
+        const fullData = await stockroomService.getStockrooms({
+          page: 1,
+          pageSize: pagination.totalRecords,
+          sortBy: sortField,
+          sortDesc: sortOrder === 'desc',
+          search: debouncedSearch.trim() || undefined
+        })
+        exportRows = fullData.rows || records
+      }
+
+      const headers = ['Stock Room ID', 'Stock Room', 'Stockroom Engineer', 'Stockroom Lead', 'Status', 'Created Date']
+      const rows = exportRows.map((r) => [
+        r.stockroomId,
+        r.stockroomName,
+        r.stockroomEngineer,
+        r.stockroomLead,
+        r.status,
+        r.createdDate ? r.createdDate.replace('T', ' ').slice(0, 19) : '-'
+      ])
+      exportToExcel(
+        headers,
+        rows,
+        `stock_room_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        'Stock Rooms'
+      )
+      showNotification('success', `Exported ${exportRows.length} stock rooms to Excel.`)
+    } catch (err) {
+      console.error('Export failed:', err)
+      showNotification('error', 'Failed to export to Excel.')
+    }
   }
 
   return (
@@ -417,19 +390,19 @@ export const StoreMaster: React.FC = () => {
           <div className="h-8 px-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] flex items-center gap-1.5 text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
             <Building2 className="w-3.5 h-3.5 text-[#1D63ED] shrink-0" />
             <span>Total:</span>
-            <strong className="font-bold tabular-nums">{totalCount}</strong>
+            <strong className="font-bold tabular-nums">{summary.totalStockRooms}</strong>
           </div>
 
           <div className="h-8 px-3 rounded-xl border border-[#A7F3D0]/60 dark:border-[#059669]/30 bg-[#ECFDF5] dark:bg-[#064E3B]/30 flex items-center gap-1.5 text-xs font-semibold text-[#059669] dark:text-[#34D399]">
             <span className="w-2 h-2 rounded-full bg-[#059669] dark:bg-[#34D399]" />
             <span>Active:</span>
-            <strong className="font-bold tabular-nums">{activeCount}</strong>
+            <strong className="font-bold tabular-nums">{summary.activeStockRooms}</strong>
           </div>
 
           <div className="h-8 px-3 rounded-xl border border-[#FECACA]/60 dark:border-[#DC2626]/30 bg-[#FEF2F2] dark:bg-[#451A1A]/40 flex items-center gap-1.5 text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
             <span className="w-2 h-2 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
             <span>Inactive:</span>
-            <strong className="font-bold tabular-nums">{inactiveCount}</strong>
+            <strong className="font-bold tabular-nums">{summary.inactiveStockRooms}</strong>
           </div>
 
           <button
@@ -461,6 +434,15 @@ export const StoreMaster: React.FC = () => {
                 }}
                 className="w-full pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -488,7 +470,7 @@ export const StoreMaster: React.FC = () => {
               type="button"
               onClick={handleExportExcel}
               className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Export filtered records to Excel (.xlsx)"
+              title="Export records to Excel (.xlsx)"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Export to Excel</span>
@@ -512,118 +494,139 @@ export const StoreMaster: React.FC = () => {
             <thead className="bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C]">
               <tr>
                 <th
-                  onClick={() => handleSort('stockRoomName')}
-                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[200px]"
+                  onClick={() => handleSort('STOCKROOM')}
+                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[220px]"
                 >
                   <div className="flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
-                    <span>Stock Room</span>
+                    <span>STOCK ROOM</span>
                     <ArrowUpDown className="w-3 h-3 text-[#94A3B8] shrink-0" />
                   </div>
                 </th>
 
                 <th
-                  onClick={() => handleSort('stockRoomEngineer')}
-                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[140px]"
+                  onClick={() => handleSort('ENGINEER')}
+                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[170px]"
                 >
                   <div className="flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5 text-[#6366F1] shrink-0" />
-                    <span>Stockroom Engineer</span>
+                    <span>STOCKROOM ENGINEER</span>
                     <ArrowUpDown className="w-3 h-3 text-[#94A3B8] shrink-0" />
                   </div>
                 </th>
 
                 <th
-                  onClick={() => handleSort('stockRoomLead')}
-                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[140px]"
+                  onClick={() => handleSort('LEAD')}
+                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors min-w-[170px]"
                 >
                   <div className="flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-[#8B5CF6] shrink-0" />
-                    <span>Stockroom Lead</span>
+                    <span>STOCKROOM LEAD</span>
                     <ArrowUpDown className="w-3 h-3 text-[#94A3B8] shrink-0" />
                   </div>
                 </th>
 
                 <th
-                  onClick={() => handleSort('status')}
-                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider text-center cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors w-[100px]"
+                  onClick={() => handleSort('STATUS')}
+                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider text-center cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors w-[110px]"
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    <span>Status</span>
+                    <span>STATUS</span>
                     <ArrowUpDown className="w-3 h-3 text-[#94A3B8] shrink-0" />
                   </div>
                 </th>
 
-                <th className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider text-right w-[90px]">
-                  <span>Actions</span>
+                <th className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider text-right w-[100px]">
+                  <span>ACTIONS</span>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C]">
-              {paginatedRecords.length === 0 ? (
+            <tbody
+              className={`divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] ${
+                isLoading ? 'opacity-50' : 'opacity-100'
+              } transition-opacity duration-200`}
+            >
+              {records.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-[#99958D]">
-                    <p className="font-medium text-xs">No matching stock room records found.</p>
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchQuery('')
-                          setCurrentPage(1)
-                        }}
-                        className="mt-1.5 text-xs text-[#00a8e7] hover:underline cursor-pointer"
-                      >
-                        Clear search filter
-                      </button>
+                  <td colSpan={5} className="py-10 text-center text-[#99958D]">
+                    {isLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                        <span>Loading stock rooms...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-medium text-xs">No matching stock room records found.</p>
+                        {debouncedSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery('')
+                              setDebouncedSearch('')
+                            }}
+                            className="mt-1.5 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                          >
+                            Clear search filter
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </tr>
               ) : (
-                paginatedRecords.map((item) => (
+                records.map((item) => (
                   <tr
-                    key={item.id}
-                    className={`transition-colors ${
-                      editingId === item.id
-                        ? 'bg-[#00a8e7]/10 dark:bg-[#00a8e7]/15 ring-1 ring-inset ring-[#00a8e7]/30'
-                        : 'hover:bg-[#FAF9F6] dark:hover:bg-[#252525]'
-                    }`}
+                    key={item.stockroomId}
+                    className="hover:bg-[#FAF9F6] dark:hover:bg-[#252525] transition-colors"
                   >
                     {/* Stock Room */}
                     <td className="py-2 px-3">
-                      <div className="font-semibold text-[#171717] dark:text-[#EDEDED]">
-                        {item.stockRoomName}
+                      <div className="font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1D63ED] shrink-0" />
+                        <span className="truncate" title={item.stockroomName}>
+                          {item.stockroomName}
+                        </span>
                       </div>
                     </td>
 
                     {/* Stockroom Engineer */}
                     <td className="py-2 px-3 font-medium text-[#171717] dark:text-[#EDEDED]">
-                      {item.stockRoomEngineer}
+                      <span className="truncate block" title={item.stockroomEngineer}>
+                        {item.stockroomEngineer}
+                      </span>
                     </td>
 
                     {/* Stockroom Lead */}
                     <td className="py-2 px-3 font-medium text-[#171717] dark:text-[#EDEDED]">
-                      {item.stockRoomLead}
+                      <span className="truncate block" title={item.stockroomLead}>
+                        {item.stockroomLead}
+                      </span>
                     </td>
 
                     {/* Status Badge */}
                     <td className="py-2 px-3 text-center">
                       <button
                         type="button"
-                        onClick={() => handleToggleStatus(item.id)}
+                        onClick={() => handleToggleStatus(item)}
+                        disabled={actionLoadingId === item.stockroomId}
                         title={`Click to toggle status (currently ${item.status})`}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all cursor-pointer disabled:opacity-50 ${
                           item.status === 'Active'
                             ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
                             : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
                         }`}
                       >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            item.status === 'Active'
-                              ? 'bg-[#059669] dark:bg-[#34D399]'
-                              : 'bg-[#DC2626] dark:bg-[#F87171]'
-                          }`}
-                        />
+                        {actionLoadingId === item.stockroomId ? (
+                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                        ) : (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              item.status === 'Active'
+                                ? 'bg-[#059669] dark:bg-[#34D399]'
+                                : 'bg-[#DC2626] dark:bg-[#F87171]'
+                            }`}
+                          />
+                        )}
                         <span>{item.status}</span>
                       </button>
                     </td>
@@ -631,32 +634,57 @@ export const StoreMaster: React.FC = () => {
                     {/* Actions */}
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(item.id)}
-                          className="p-1 rounded-md text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer"
-                          title={`Toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`}
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Toggle Status Action */}
+                        <div className="relative group/tooltip">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(item)}
+                            disabled={actionLoadingId === item.stockroomId}
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </button>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-30">
+                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
+                              Toggle to {item.status === 'Active' ? 'Inactive' : 'Active'}
+                            </div>
+                            <div className="w-1.5 h-1.5 -mt-0.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
+                          </div>
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(item)}
-                          className="p-1 rounded-md text-[#64748B] hover:text-[#1D63ED] hover:bg-[#EFF6FF] dark:hover:bg-[#1E3A8A]/30 transition-colors cursor-pointer"
-                          title="Edit Stock Room"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Edit Action */}
+                        <div className="relative group/tooltip">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(item)}
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1D63ED] hover:bg-[#EFF6FF] dark:hover:bg-[#1E3A8A]/30 transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-30">
+                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
+                              Edit Stock Room
+                            </div>
+                            <div className="w-1.5 h-1.5 -mt-0.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
+                          </div>
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.id, item.stockRoomName)}
-                          className="p-1 rounded-md text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#451A1A]/40 transition-colors cursor-pointer"
-                          title="Delete Stock Room"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Delete Action */}
+                        <div className="relative group/tooltip">
+                          <button
+                            type="button"
+                            onClick={() => setDeletingRecord(item)}
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#451A1A]/40 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover/tooltip:flex flex-col items-end pointer-events-none z-30">
+                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
+                              Delete Stock Room
+                            </div>
+                            <div className="w-1.5 h-1.5 -mt-0.5 mr-2.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -672,11 +700,11 @@ export const StoreMaster: React.FC = () => {
             <span>
               Showing{' '}
               <strong className="text-[#171717] dark:text-[#EDEDED]">
-                {totalRecords === 0 ? 0 : startIndex + 1}
+                {displayStart}
               </strong>{' '}
               to{' '}
               <strong className="text-[#171717] dark:text-[#EDEDED]">
-                {isAll ? totalRecords : Math.min(startIndex + (effectiveLimit as number), totalRecords)}
+                {displayEnd}
               </strong>{' '}
               of{' '}
               <strong className="text-[#171717] dark:text-[#EDEDED]">
@@ -756,15 +784,15 @@ export const StoreMaster: React.FC = () => {
             <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
-                  {editingId ? <Edit2 className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+                  {editingRecord ? <Edit2 className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
                 </div>
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED]">
-                    {editingId ? 'Edit Stock Room' : 'Add New Stock Room'}
+                    {editingRecord ? 'Edit Stock Room' : 'Add New Stock Room'}
                   </h3>
                   <p className="text-xs text-[#99958D] dark:text-[#888888] mt-0.5">
-                    {editingId
-                      ? 'Modify stock room configuration & operational assignments.'
+                    {editingRecord
+                      ? `Modifying ${editingRecord.stockroomName}`
                       : 'Register a new stock room location and assign personnel.'}
                   </p>
                 </div>
@@ -773,7 +801,8 @@ export const StoreMaster: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer"
+                disabled={isSubmitting}
+                className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer disabled:opacity-50"
                 title="Close"
               >
                 <X className="w-5 h-5" />
@@ -785,27 +814,27 @@ export const StoreMaster: React.FC = () => {
               {/* Field 1: Stock Room Name */}
               <div>
                 <label className="block text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1.5">
-                  Stock Room <span className="text-[#DC2626]">*</span>
+                  Stock Room Name <span className="text-[#DC2626]">*</span>
                 </label>
                 <div className="relative">
                   <Building2 className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="e.g. IND-AND-VIZAG-S1-1F-NO WING-UI"
-                    value={stockRoomName}
+                    placeholder="e.g. IND-HAR-GGN-SEZ-INFOSPACE-T1-FF"
+                    value={stockroomName}
                     onChange={(e) => {
-                      setStockRoomName(e.target.value)
-                      if (errors.stockRoomName) setErrors((prev) => ({ ...prev, stockRoomName: undefined }))
+                      setStockroomName(e.target.value)
+                      if (errors.stockroomName) setErrors((prev) => ({ ...prev, stockroomName: undefined }))
                     }}
                     className={`w-full pl-10 pr-3.5 py-2.5 text-sm bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
-                      errors.stockRoomName
+                      errors.stockroomName
                         ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
                         : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
                     }`}
                   />
                 </div>
-                {errors.stockRoomName && (
-                  <p className="mt-1.5 text-xs text-[#DC2626] font-medium">{errors.stockRoomName}</p>
+                {errors.stockroomName && (
+                  <p className="mt-1.5 text-xs text-[#DC2626] font-medium">{errors.stockroomName}</p>
                 )}
               </div>
 
@@ -819,23 +848,23 @@ export const StoreMaster: React.FC = () => {
                     <User className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="e.g. Manoj Sharma"
-                      value={stockRoomEngineer}
+                      placeholder="e.g. kavita.reddy@wipro.com"
+                      value={stockroomEngineer}
                       onChange={(e) => {
-                        setStockRoomEngineer(e.target.value)
-                        if (errors.stockRoomEngineer)
-                          setErrors((prev) => ({ ...prev, stockRoomEngineer: undefined }))
+                        setStockroomEngineer(e.target.value)
+                        if (errors.stockroomEngineer)
+                          setErrors((prev) => ({ ...prev, stockroomEngineer: undefined }))
                       }}
                       className={`w-full pl-10 pr-3.5 py-2.5 text-sm bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
-                        errors.stockRoomEngineer
+                        errors.stockroomEngineer
                           ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
                           : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
                       }`}
                     />
                   </div>
-                  {errors.stockRoomEngineer && (
+                  {errors.stockroomEngineer && (
                     <p className="mt-1.5 text-xs text-[#DC2626] font-medium">
-                      {errors.stockRoomEngineer}
+                      {errors.stockroomEngineer}
                     </p>
                   )}
                 </div>
@@ -848,23 +877,23 @@ export const StoreMaster: React.FC = () => {
                     <ShieldCheck className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="e.g. Suresh Nair"
-                      value={stockRoomLead}
+                      placeholder="e.g. amit.shah@wipro.com"
+                      value={stockroomLead}
                       onChange={(e) => {
-                        setStockRoomLead(e.target.value)
-                        if (errors.stockRoomLead)
-                          setErrors((prev) => ({ ...prev, stockRoomLead: undefined }))
+                        setStockroomLead(e.target.value)
+                        if (errors.stockroomLead)
+                          setErrors((prev) => ({ ...prev, stockroomLead: undefined }))
                       }}
                       className={`w-full pl-10 pr-3.5 py-2.5 text-sm bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
-                        errors.stockRoomLead
+                        errors.stockroomLead
                           ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
                           : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
                       }`}
                     />
                   </div>
-                  {errors.stockRoomLead && (
+                  {errors.stockroomLead && (
                     <p className="mt-1.5 text-xs text-[#DC2626] font-medium">
-                      {errors.stockRoomLead}
+                      {errors.stockroomLead}
                     </p>
                   )}
                 </div>
@@ -909,19 +938,90 @@ export const StoreMaster: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60"
                 >
-                  {editingId ? <Check className="w-4 h-4 stroke-[2.5]" /> : <Plus className="w-4 h-4 stroke-[2.5]" />}
-                  <span>{editingId ? 'Update Stock Room' : 'Save Stock Room'}</span>
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : editingRecord ? (
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  ) : (
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                  <span>
+                    {isSubmitting
+                      ? 'Saving...'
+                      : editingRecord
+                        ? 'Update Stock Room'
+                        : 'Save Stock Room'}
+                  </span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingRecord && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setDeletingRecord(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden p-6 animate-in zoom-in-95 duration-150 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[#DC2626]/10 text-[#DC2626] flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-[#171717] dark:text-[#EDEDED]">
+                  Delete Stock Room?
+                </h3>
+                <p className="text-xs text-[#666666] dark:text-[#A0A0A0] mt-1.5 leading-relaxed">
+                  Are you sure you want to permanently delete{' '}
+                  <strong className="text-[#171717] dark:text-[#EDEDED]">
+                    "{deletingRecord.stockroomName}"
+                  </strong>
+                  ? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
+              <button
+                type="button"
+                onClick={() => setDeletingRecord(null)}
+                disabled={actionLoadingId === deletingRecord.stockroomId}
+                className="px-4 py-2 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={actionLoadingId === deletingRecord.stockroomId}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {actionLoadingId === deletingRecord.stockroomId ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {actionLoadingId === deletingRecord.stockroomId ? 'Deleting...' : 'Delete'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -930,3 +1030,4 @@ export const StoreMaster: React.FC = () => {
 }
 
 export const StockRoomMaster = StoreMaster
+export default StoreMaster

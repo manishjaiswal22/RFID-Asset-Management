@@ -42,8 +42,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-screen z-40 flex flex-col justify-between bg-[#F6F5F1] dark:bg-[#121212] transition-all duration-300 ease-in-out select-none ${isCollapsed ? 'w-14 sm:w-16' : 'w-56 sm:w-60'
-        }`}
+      className={`fixed top-0 left-0 h-screen z-[80] flex flex-col justify-between bg-[#F6F5F1] dark:bg-[#121212] transition-all duration-300 ease-in-out select-none border-r border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 ${
+        isCollapsed ? 'w-14' : 'w-56'
+      }`}
     >
       <div>
         <div className={`h-14 flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-between px-3.5'}`}>
@@ -79,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!isCollapsed && <span>Central Dashboard</span>}
             </button>
             {isCollapsed && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-md">
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[120] shadow-lg">
                 Central Dashboard
               </div>
             )}
@@ -97,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!isCollapsed && <span>Stock Room Dashboard</span>}
             </button>
             {isCollapsed && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-md">
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[120] shadow-lg">
                 Stock Room Dashboard
               </div>
             )}
@@ -123,7 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
             {isCollapsed && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-md">
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[120] shadow-lg">
                 Master (User & Stock Room)
               </div>
             )}
@@ -166,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!isCollapsed && <span>Report</span>}
             </button>
             {isCollapsed && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-md">
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-3 py-1.5 bg-[#171717] text-white text-xs rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[120] shadow-lg">
                 Report
               </div>
             )}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import type { NavMenu } from '../types/dashboard'
+import type { AuthUser } from '../types/auth'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { DashboardFooter } from './DashboardFooter'
@@ -11,15 +12,17 @@ import { ReportsView } from './ReportsView'
 
 interface DashboardLayoutProps {
   onLogout: () => void
+  currentUser?: AuthUser | null
 }
 
-export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, currentUser }) => {
   const [activeMenu, setActiveMenu] = useState<NavMenu>('central')
   const [isCollapsed, setIsCollapsed] = useState(true)
-  const [selectedStockRoomId, setSelectedStockRoomId] = useState<string>('stock-1')
+  const [centralSearchQuery, setCentralSearchQuery] = useState<string>('')
+  const [stockRoomDashboardStoreId, setStockRoomDashboardStoreId] = useState<string>('all')
 
   const handleNavigateToStore = (storeId: string) => {
-    setSelectedStockRoomId(storeId)
+    setStockRoomDashboardStoreId(storeId)
     setActiveMenu('store')
   }
 
@@ -50,18 +53,28 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) =>
 
       <div
         className={`flex-1 flex flex-col justify-between min-h-screen transition-all duration-300 ease-in-out ${
-          isCollapsed ? 'pl-14 sm:pl-16' : 'pl-56 sm:pl-60'
+          isCollapsed ? 'pl-14' : 'pl-56'
         }`}
       >
-        <Header pageTitle={getPageTitle(activeMenu)} onLogout={onLogout} />
+        <Header
+          pageTitle={getPageTitle(activeMenu)}
+          onLogout={onLogout}
+          userName={currentUser?.userName}
+        />
 
-        <main className="flex-1 pl-2 sm:pl-3 pr-2.5 sm:pr-4 pb-2 sm:pb-3 pt-2.5 sm:pt-3.5 flex flex-col">
+        <main className="flex-1 px-1.5 sm:px-2.5 pb-2 sm:pb-3 pt-1.5 sm:pt-2 flex flex-col">
           <div className="w-full flex-1 rounded-2xl bg-white dark:bg-[#1C1C1C] p-3 sm:p-4 flex flex-col transition-colors border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs">
-            {activeMenu === 'central' && <CentralDashboard onNavigateToStore={handleNavigateToStore} />}
+            {activeMenu === 'central' && (
+              <CentralDashboard
+                onNavigateToStore={handleNavigateToStore}
+                initialSearchQuery={centralSearchQuery}
+                onSearchQueryChange={setCentralSearchQuery}
+              />
+            )}
             {activeMenu === 'store' && (
               <StoreDashboard
-                selectedStoreId={selectedStockRoomId}
-                onStoreChange={setSelectedStockRoomId}
+                selectedStoreId={stockRoomDashboardStoreId}
+                onStoreChange={setStockRoomDashboardStoreId}
               />
             )}
             {(activeMenu === 'user-master' || activeMenu === 'reader-master') && <UserMaster />}

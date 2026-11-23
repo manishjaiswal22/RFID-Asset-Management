@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Building2,
   Tag,
@@ -7,53 +7,206 @@ import {
   Clock
 } from 'lucide-react'
 import TickerNumber from './TickerNumber'
-import StoreFilter from './StoreFilter'
-import StoreAssetsTable from './StoreAssetsTable'
-import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
+import StoreFilter, { type StoreItem } from './StoreFilter'
+import StoreAssetsTable, {
+  type StoreAssetRecord,
+  type SortField,
+  type SortOrder
+} from './StoreAssetsTable'
+import { dashboardService } from '../services/dashboardService'
+import type { ApiStockroom } from '../types/stockroom'
+import type {
+  CentralDashboardSummary,
+  CentralDashboardPagination
+} from '../types/centralDashboard'
 
 interface CentralDashboardProps {
   onNavigateToStore?: (storeId: string) => void
+  initialSearchQuery?: string
+  onSearchQueryChange?: (query: string) => void
 }
 
-export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateToStore }) => {
-  const [storeRecords, setStoreRecords] = useState<StoreAssetRecord[]>(DUMMY_STORE_RECORDS)
+export const CentralDashboard: React.FC<CentralDashboardProps> = ({
+  onNavigateToStore,
+  initialSearchQuery = '',
+  onSearchQueryChange
+}) => {
+  const [summary, setSummary] = useState<CentralDashboardSummary>({
+    totalStockRooms: 0,
+    totalTaggedAssets: 0,
+    assetIssuance: 0,
+    availableAssets: 0
+  })
+  const [tableRows, setTableRows] = useState<StoreAssetRecord[]>([])
+  const [pagination, setPagination] = useState<CentralDashboardPagination>({
+    page: 1,
+    pageSize: 10,
+    totalRecords: 0,
+    totalPages: 1
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [apiStockrooms, setApiStockrooms] = useState<ApiStockroom[]>([])
   const [currentTime, setCurrentTime] = useState<Date>(new Date())
+  // Always default to 'all' so returning to Central Dashboard shows all stock rooms
   const [selectedStore, setSelectedStore] = useState('all')
 
-  // Calculate live KPI metrics directly from store records so cards and table always match 100%
-  const metrics = useMemo(() => {
-    const activeRecords =
-      selectedStore && selectedStore !== 'all'
-        ? storeRecords.filter((s) => s.id === selectedStore)
-        : storeRecords
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
+  const [sortField, setSortField] = useState<SortField>('totalAssets')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
-    const totalAssets = activeRecords.reduce((sum, s) => sum + s.totalAssets, 0)
-    const totalOut = activeRecords.reduce((sum, s) => sum + s.totalOut, 0)
-    const totalIn = totalAssets - totalOut // Available Assets = Total Tagged Assets - Asset Issuance
+  const cardsRef = useRef<HTMLDivElement>(null)
+  const [cardsBottomOffset, setCardsBottomOffset] = useState<number>(210)
 
-    return {
-      totalStockRooms: selectedStore === 'all' ? storeRecords.length : 1,
-      totalAssets,
-      totalOut,
-      totalIn
+  // Measure exact bottom position of cards container when stuck below navbar
+  useEffect(() => {
+    const updateOffset = () => {
+      if (cardsRef.current) {
+        const headerEl = document.querySelector('header')
+        const headerH = headerEl ? headerEl.offsetHeight : (window.innerWidth >= 640 ? 56 : 48)
+        setCardsBottomOffset(headerH + cardsRef.current.offsetHeight)
+      }
     }
-  }, [storeRecords, selectedStore])
+    updateOffset()
+    const ro = new ResizeObserver(updateOffset)
+    if (cardsRef.current) ro.observe(cardsRef.current)
+    window.addEventListener('resize', updateOffset)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', updateOffset)
+    }
+  }, [])
 
-  // Memoize stock room options for dropdown directly from live storeRecords
-  const stockRoomOptions = useMemo(
-    () => [
+  // Debounce search query to prevent rapid API requests
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q)
+    onSearchQueryChange?.(q)
+  }
+
+  // Fetch stockrooms list for top dropdown
+  useEffect(() => {
+    let mounted = true
+    dashboardService
+      .getStockrooms()
+      .then((data) => {
+        if (mounted && data?.length) {
+          setApiStockrooms(data)
+        }
+      })
+      .catch((err) => {
+        console.warn('CentralDashboard: Could not fetch stockrooms from API', err)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  // Resolve selectedStore ID to numeric stockroomId for API
+  const resolvedStockroomId = useMemo(() => {
+    if (!selectedStore || selectedStore === 'all') return undefined
+    const num = parseInt(selectedStore.replace(/^stock-/, ''), 10)
+    if (!isNaN(num)) return num
+    const match = apiStockrooms.find(
+      (s) => s.stockroomName.toLowerCase() === selectedStore.toLowerCase()
+    )
+    return match?.stockroomId
+  }, [selectedStore, apiStockrooms])
+
+  // Map table SortField to API sortBy parameter
+  const getSortByParam = (
+    field: SortField
+  ): 'TOTAL_TAGGED' | 'ASSET_ISSUANCE' | 'AVAILABLE_ASSETS' | 'STOCKROOM_NAME' => {
+    switch (field) {
+      case 'totalAssets':
+        return 'TOTAL_TAGGED'
+      case 'totalOut':
+        return 'ASSET_ISSUANCE'
+      case 'totalIn':
+        return 'AVAILABLE_ASSETS'
+      case 'storeName':
+      default:
+        return 'STOCKROOM_NAME'
+    }
+  }
+
+  // Fetch Central Dashboard card summary & table records from API
+  useEffect(() => {
+    let mounted = true
+    setIsLoading(true)
+
+    const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+
+    dashboardService
+      .getCentralDashboard({
+        page: currentPage,
+        pageSize: numericPageSize,
+        sortBy: getSortByParam(sortField),
+        sortDesc: sortOrder === 'desc',
+        stockroomId: resolvedStockroomId,
+        search: debouncedSearch.trim() || undefined
+      })
+      .then((res) => {
+        if (!mounted) return
+        setSummary(res.summary)
+        setPagination(res.pagination)
+        setTableRows(
+          res.rows.map((r) => ({
+            id: String(r.stockroomId),
+            storeCode: `SR-${r.stockroomId}`,
+            storeName: r.stockroomName,
+            location: r.stockroomName,
+            keywords: r.stockroomName,
+            totalAssets: r.totalTaggedAssets,
+            totalOut: r.assetIssuance,
+            totalIn: r.availableAssets
+          }))
+        )
+      })
+      .catch((err) => {
+        console.error('Failed to load central dashboard data from API', err)
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [
+    currentPage,
+    rowsPerPage,
+    sortField,
+    sortOrder,
+    debouncedSearch,
+    resolvedStockroomId
+  ])
+
+  // Memoize stock room options for dropdown
+  const stockRoomOptions: StoreItem[] = useMemo(() => {
+    return [
       { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
-      ...storeRecords.map((s) => ({
-        id: s.id,
-        storeCode: s.storeCode,
-        name: s.storeName,
-        location: s.location,
-        keywords: s.keywords
+      ...apiStockrooms.map((s) => ({
+        id: String(s.stockroomId),
+        storeCode: `SR-${s.stockroomId}`,
+        name: s.stockroomName,
+        location: s.stockroomName,
+        keywords: s.stockroomName
       }))
-    ],
-    [storeRecords]
-  )
+    ]
+  }, [apiStockrooms])
 
+  // Clock timer
   useEffect(() => {
     const clockTimer = setInterval(() => {
       setCurrentTime(new Date())
@@ -61,29 +214,20 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
     return () => clearInterval(clockTimer)
   }, [])
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStoreRecords((prev) => {
-        const targetIndex = Math.floor(Math.random() * prev.length)
-        const assetInc = Math.floor(Math.random() * 3) + 1
-        const outInc = Math.random() > 0.5 ? 1 : 0
+  const handleSortChange = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortOrder('desc')
+    }
+    setCurrentPage(1)
+  }
 
-        return prev.map((item, idx) => {
-          if (idx !== targetIndex) return item
-          const newAssets = item.totalAssets + assetInc
-          const newOut = item.totalOut + outInc
-          return {
-            ...item,
-            totalAssets: newAssets,
-            totalOut: newOut,
-            totalIn: newAssets - newOut
-          }
-        })
-      })
-    }, 4500)
-
-    return () => clearInterval(interval)
-  }, [])
+  const handleStoreChange = (storeId: string) => {
+    setSelectedStore(storeId)
+    setCurrentPage(1)
+  }
 
   const formatDateTime = (date: Date): string => {
     const datePart = date.toLocaleDateString('en-US', {
@@ -101,11 +245,12 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
     return `${datePart} • ${timePart}`
   }
 
+  // 4 KPI Cards Grid
   const cards = [
     {
       id: 'stock-rooms',
       title: 'Total Stock Room',
-      value: metrics.totalStockRooms,
+      value: summary.totalStockRooms,
       icon: (
         <Building2
           className="w-9 h-9 sm:w-10 sm:h-10 text-[#1D63ED]/50 dark:text-[#60A5FA]/60"
@@ -120,7 +265,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
     {
       id: 'assets',
       title: 'Total Tagged Assets',
-      value: metrics.totalAssets,
+      value: summary.totalTaggedAssets,
       icon: (
         <Tag
           className="w-9 h-9 sm:w-10 sm:h-10 text-[#7C3AED]/50 dark:text-[#C084FC]/60"
@@ -135,7 +280,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
     {
       id: 'outbound',
       title: 'Asset Issuance',
-      value: metrics.totalOut,
+      value: summary.assetIssuance,
       icon: (
         <ArrowUpRight
           className="w-9 h-9 sm:w-10 sm:h-10 text-[#EA580C]/50 dark:text-[#FB923C]/60"
@@ -150,7 +295,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
     {
       id: 'inbound',
       title: 'Available Assets',
-      value: metrics.totalIn,
+      value: summary.availableAssets,
       icon: (
         <ArrowDownLeft
           className="w-9 h-9 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
@@ -166,8 +311,11 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
 
   return (
     <div className="w-full flex-1 flex flex-col space-y-2 sm:space-y-2.5">
-      {/* Top Header Section & 4 KPI Cards: Sticky on desktop (lg:), scrolls naturally on smaller screens */}
-      <div className="lg:sticky lg:top-14 lg:z-20 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2 sm:space-y-2.5 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors">
+      {/* Top Header Section & 4 KPI Cards: Sticky on desktop below navbar */}
+      <div
+        ref={cardsRef}
+        className="sticky top-12 sm:top-14 z-30 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2 sm:space-y-2.5 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors"
+      >
         {/* Top Header Section */}
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 sm:gap-2.5 pb-1.5 sm:pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
           <div className="min-w-0">
@@ -192,7 +340,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
             {/* Stock Room Selection */}
             <StoreFilter
               selectedStore={selectedStore}
-              onStoreChange={(storeId) => setSelectedStore(storeId)}
+              onStoreChange={handleStoreChange}
               stores={stockRoomOptions}
             />
           </div>
@@ -240,7 +388,9 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
 
               {/* Left: Title & Big Number */}
               <div className="relative z-10 flex flex-col justify-between space-y-1 min-w-0">
-                <span className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}>
+                <span
+                  className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}
+                >
                   {card.title}
                 </span>
                 <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
@@ -260,10 +410,30 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateTo
       {/* Stores Assets Performance Table with clean separation space */}
       <div className="flex-1 flex flex-col mt-2 sm:mt-2.5">
         <StoreAssetsTable
+          cardsBottomOffset={cardsBottomOffset}
+          isServerSide={true}
+          isLoading={isLoading}
           selectedStoreId={selectedStore}
-          onClearStoreFilter={() => setSelectedStore('all')}
+          onClearStoreFilter={() => {
+            setSelectedStore('all')
+            setCurrentPage(1)
+          }}
           onNavigateToStore={onNavigateToStore}
-          storesData={storeRecords}
+          storesData={tableRows}
+          totalRecordsCount={pagination.totalRecords}
+          totalPagesCount={pagination.totalPages}
+          serverSearchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          serverSortField={sortField}
+          serverSortOrder={sortOrder}
+          onSortChange={handleSortChange}
+          serverRowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(size) => {
+            setRowsPerPage(size)
+            setCurrentPage(1)
+          }}
+          serverCurrentPage={currentPage}
+          onPageChange={(p) => setCurrentPage(p)}
           className="w-full flex flex-col"
         />
       </div>

@@ -7,9 +7,10 @@ import wiproLogoWhite from '../assets/wipro_new_logo_white.svg'
 interface HeaderProps {
   pageTitle: string
   onLogout: () => void
+  userName?: string
 }
 
-export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ onLogout, userName }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { theme, toggleTheme } = useTheme()
@@ -28,8 +29,8 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 h-12 sm:h-14 pl-2 sm:pl-3 pr-3 sm:pr-5 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1]/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
-      <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+    <header className="sticky top-0 z-[100] h-12 sm:h-14 pl-1.5 sm:pl-2.5 pr-2.5 sm:pr-4 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1] dark:bg-[#121212] border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <div className="flex items-center shrink-0">
           <img
             src={theme === 'dark' ? wiproLogoWhite : wiproLogo}
@@ -39,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
           />
         </div>
 
-        <h1 className="hidden lg:block text-sm sm:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap truncate">
+        <h1 className="block text-xs sm:text-sm md:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap truncate">
           HAM Pro Asset Management System
         </h1>
       </div>
@@ -63,11 +64,11 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="h-9 sm:h-9.5 flex items-center gap-2 pl-2 pr-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] hover:bg-[#FAF9F6] dark:hover:bg-[#252525] transition-colors cursor-pointer"
           >
-            <div className="w-6 h-6 rounded-lg bg-[#F5F3EE] dark:bg-[#282828] border border-[#EAE7DF] dark:border-[#333333] flex items-center justify-center text-[#171717] dark:text-white shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-[#F5F3EE] dark:bg-[#282828] border border-[#EAE7DF] dark:border-[#333333] flex items-center justify-center text-[#171717] dark:white shrink-0">
               <User className="w-3.5 h-3.5" />
             </div>
             <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] whitespace-nowrap">
-              Welcome Admin
+              Welcome {userName || 'Admin'}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-[#99958D] shrink-0" />
           </button>
@@ -78,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 <div className="w-7 h-7 rounded-lg bg-[#F5F3EE] dark:bg-[#303030] border border-[#EAE7DF] dark:border-[#3C3C3C] flex items-center justify-center text-[#171717] dark:text-white shrink-0">
                   <User className="w-4 h-4 text-[#171717] dark:text-white" />
                 </div>
-                <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">Admin</span>
+                <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">{userName || 'Admin'}</span>
               </div>
 
               <button
