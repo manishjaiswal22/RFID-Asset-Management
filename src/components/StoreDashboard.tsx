@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Clock,
   Building2,
@@ -21,41 +21,38 @@ import StoreFilter, { type StoreItem } from './StoreFilter'
 import TickerNumber from './TickerNumber'
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 import { INITIAL_MOVEMENTS, type AssetMovement } from '../data/movementsData'
+import { exportToExcel } from '../utils/excelExport'
 
 type SortField = 'dateTime' | 'assetTag' | 'serialNo' | 'makeModel' | 'assetDescription' | 'move'
 type SortOrder = 'asc' | 'desc'
 
-export const StoreDashboard: React.FC = () => {
-  const [selectedStore, setSelectedStore] = useState<string>('all')
+interface StoreDashboardProps {
+  selectedStoreId?: string
+  onStoreChange?: (storeId: string) => void
+}
+
+export const StoreDashboard: React.FC<StoreDashboardProps> = ({
+  selectedStoreId = 'stock-1',
+  onStoreChange
+}) => {
+  const [selectedStore, setSelectedStore] = useState<string>(selectedStoreId)
   const [currentTime, setCurrentTime] = useState<Date>(new Date())
+
+  // Keep selectedStore in sync with prop changes (e.g. when navigated from Central Dashboard)
+  useEffect(() => {
+    if (selectedStoreId) {
+      setSelectedStore(selectedStoreId)
+    }
+  }, [selectedStoreId])
+
+  const handleStoreChange = (storeId: string) => {
+    setSelectedStore(storeId)
+    onStoreChange?.(storeId)
+  }
   const [storeRecords, setStoreRecords] = useState<StoreAssetRecord[]>(DUMMY_STORE_RECORDS)
   const [movements] = useState<AssetMovement[]>(INITIAL_MOVEMENTS)
   const [selectedReadId, setSelectedReadId] = useState<string>(INITIAL_MOVEMENTS[0].id)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const leftCardRef = useRef<HTMLDivElement>(null)
-  const [leftCardHeight, setLeftCardHeight] = useState<number | undefined>(undefined)
-
-  // Synchronize right table card height with left details card on desktop
-  useEffect(() => {
-    if (!leftCardRef.current) return
-    const updateHeight = () => {
-      if (leftCardRef.current && window.innerWidth >= 1024) {
-        setLeftCardHeight(leftCardRef.current.offsetHeight)
-      } else {
-        setLeftCardHeight(undefined)
-      }
-    }
-
-    updateHeight()
-    const resizeObserver = new ResizeObserver(updateHeight)
-    resizeObserver.observe(leftCardRef.current)
-    window.addEventListener('resize', updateHeight)
-
-    return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', updateHeight)
-    }
-  }, [])
 
   // Clock interval
   useEffect(() => {
@@ -108,7 +105,47 @@ export const StoreDashboard: React.FC = () => {
     }
   }, [storeRecords, selectedStore])
 
+  // Options for StoreFilter
+  const stockRoomOptions: StoreItem[] = useMemo(
+    () => [
+      { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
+      ...DUMMY_STORE_RECORDS.map((s) => ({
+        id: s.id,
+        storeCode: s.storeCode,
+        name: s.storeName,
+        location: s.location,
+        keywords: s.keywords
+      }))
+    ],
+    []
+  )
+
+  // Current selected stock room name for display
+  const currentStockroomName = useMemo(() => {
+    if (selectedStore === 'all') {
+      return 'All Stock Rooms'
+    }
+    const found = DUMMY_STORE_RECORDS.find((s) => s.id === selectedStore)
+    return found ? found.storeName : DUMMY_STORE_RECORDS[0]?.storeName || 'All Stock Rooms'
+  }, [selectedStore])
+
   const kpiCards = [
+    {
+      id: 'stockroom',
+      title: 'Stock Room',
+      isText: true,
+      textValue: currentStockroomName,
+      icon: (
+        <Building2
+          className="w-9 h-9 sm:w-10 sm:h-10 text-[#1D63ED]/50 dark:text-[#60A5FA]/60"
+          strokeWidth={1.8}
+        />
+      ),
+      bgClass: 'bg-[#F0F6FF] dark:bg-[#132238]',
+      borderClass: 'border-[#D8E6FC] dark:border-[#1E3A5F] hover:border-transparent',
+      titleColor: 'text-[#1D63ED] dark:text-[#60A5FA]',
+      waveColor: 'text-[#1D63ED] dark:text-[#60A5FA]'
+    },
     {
       id: 'assets',
       title: 'Total Tagged Assets',
@@ -156,30 +193,6 @@ export const StoreDashboard: React.FC = () => {
     }
   ]
 
-  // Options for StoreFilter
-  const stockRoomOptions: StoreItem[] = useMemo(
-    () => [
-      { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
-      ...DUMMY_STORE_RECORDS.map((s) => ({
-        id: s.id,
-        storeCode: s.storeCode,
-        name: s.storeName,
-        location: s.location,
-        keywords: s.keywords
-      }))
-    ],
-    []
-  )
-
-  // Current selected stock room name for display
-  const currentStockroomName = useMemo(() => {
-    if (selectedStore === 'all') {
-      return 'PH-MNL-BITS-01'
-    }
-    const found = DUMMY_STORE_RECORDS.find((s) => s.id === selectedStore)
-    return found ? found.storeName : 'PH-MNL-BITS-01'
-  }, [selectedStore])
-
   // Filter movements if a specific stockroom is chosen
   const displayedMovements = useMemo(() => {
     if (selectedStore === 'all') return movements
@@ -200,7 +213,7 @@ export const StoreDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('dateTime')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(5)
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
   const handleSort = (field: SortField) => {
@@ -274,27 +287,24 @@ export const StoreDashboard: React.FC = () => {
     return pages
   }
 
-  // Export to Excel / CSV
-  const handleExportCSV = () => {
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
     const headers = ['Date-Time', 'Asset Tag', 'Serial No', 'Make / Model', 'Asset Description', 'Move', 'Stockroom']
     const rows = filteredAndSortedMovements.map((r) => [
-      `"${r.dateTime}"`,
-      `"${r.assetTag}"`,
-      `"${r.serialNo}"`,
-      `"${r.makeModel}"`,
-      `"${r.assetDescription || r.subType || r.assetType}"`,
-      `"${r.move}"`,
-      `"${r.stockroom}"`
+      r.dateTime,
+      r.assetTag,
+      r.serialNo,
+      r.makeModel,
+      r.assetDescription || r.subType || r.assetType,
+      r.move,
+      r.stockroom
     ])
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `asset_movements_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    exportToExcel(
+      headers,
+      rows,
+      `asset_movements_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Asset Movements'
+    )
   }
 
   const formatDateTime = (date: Date): string => {
@@ -337,123 +347,128 @@ export const StoreDashboard: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col space-y-2.5 sm:space-y-3 min-h-0 overflow-hidden select-none">
-      {/* Top Header Section (Live Pill, Time Pill, Stock Room Filter) - FIXED */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-1 sm:pb-1.5 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
-            Stock Room Dashboard
-          </h2>
-          <p className="text-[11px] text-[#99958D] dark:text-[#888888]">
-            Real-time RFID portal read events, movement verification, and signal telemetry.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          {/* Live Status Pill */}
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#5D9273]/30 bg-[#5D9273]/10 dark:bg-[#5D9273]/20 text-[#2E7D32] dark:text-[#4ADE80] text-xs font-bold tracking-wide select-none">
-            <span className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-[#4ADE80] animate-pulse shrink-0" />
-            <span>Live</span>
+    <div className="w-full flex-1 flex flex-col space-y-2.5 sm:space-y-3 select-none">
+      {/* Top Header Section & 4 KPI Cards: Sticky on desktop (lg:), scrolls naturally on smaller screens */}
+      <div className="lg:sticky lg:top-14 lg:z-20 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2.5 sm:space-y-3 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors">
+        {/* Top Header Section (Live Pill, Time Pill, Stock Room Filter) */}
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 sm:gap-2.5 pb-1.5 sm:pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight whitespace-nowrap">
+              Stock Room Dashboard
+            </h2>
           </div>
 
-          {/* Time Pill */}
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
-            <Clock className="w-3.5 h-3.5 text-[#F5A23A] shrink-0" />
-            <span>{formatDateTime(currentTime)}</span>
-          </div>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {/* Live Status Pill */}
+            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#5D9273]/30 bg-[#5D9273]/10 dark:bg-[#5D9273]/20 text-[#2E7D32] dark:text-[#4ADE80] text-xs font-bold tracking-wide select-none">
+              <span className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-[#4ADE80] animate-pulse shrink-0" />
+              <span>Live</span>
+            </div>
 
-          {/* Stock Room Selection */}
-          <StoreFilter
-            selectedStore={selectedStore}
-            onStoreChange={(storeId) => setSelectedStore(storeId)}
-            stores={stockRoomOptions}
-          />
-        </div>
-      </div>
+            {/* Time Pill */}
+            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
+              <Clock className="w-3.5 h-3.5 text-[#F5A23A] shrink-0" />
+              <span>{formatDateTime(currentTime)}</span>
+            </div>
 
-      {/* 3 KPI Cards Grid (Total Tagged Assets, Asset Issuance, Available Assets - without Total Stock Room) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
-        {kpiCards.map((card) => (
-          <div
-            key={card.id}
-            className={`group relative overflow-hidden rounded-2xl p-3 sm:p-3.5 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[80px] sm:min-h-[88px] cursor-pointer`}
-          >
-            {/* Background Layer: Subtle Curved Wave Pattern */}
-            <svg
-              className={`absolute inset-0 w-full h-full pointer-events-none ${card.waveColor}`}
-              viewBox="0 0 340 190"
-              preserveAspectRatio="none"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M 175 0 C 225 45, 245 125, 165 190 L 340 190 L 340 0 Z"
-                fill="currentColor"
-                fillOpacity="0.05"
-              />
-              <path
-                d="M 230 0 C 275 45, 295 125, 235 190 L 340 190 L 340 0 Z"
-                fill="currentColor"
-                fillOpacity="0.04"
-              />
-              <circle
-                cx="300"
-                cy="35"
-                r="65"
-                fill="currentColor"
-                fillOpacity="0.03"
-              />
-            </svg>
-
-            {/* Hover Shine Effect */}
-            <div
-              className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none z-20"
-              aria-hidden="true"
+            {/* Stock Room Selection */}
+            <StoreFilter
+              selectedStore={selectedStore}
+              onStoreChange={handleStoreChange}
+              stores={stockRoomOptions}
             />
+          </div>
+        </div>
 
-            {/* Left: Title & Big Number */}
-            <div className="relative z-10 flex flex-col justify-between space-y-0.5 sm:space-y-1 min-w-0">
-              <span className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}>
-                {card.title}
-              </span>
-              <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
-                <TickerNumber value={card.value} />
+        {/* 4 KPI Cards Grid (Stock Room, Total Tagged Assets, Asset Issuance, Available Assets) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
+          {kpiCards.map((card) => (
+            <div
+              key={card.id}
+              className={`group relative overflow-hidden rounded-2xl p-3 sm:p-3.5 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[80px] sm:min-h-[88px] cursor-pointer`}
+            >
+              {/* Background Layer: Subtle Curved Wave Pattern */}
+              <svg
+                className={`absolute inset-0 w-full h-full pointer-events-none ${card.waveColor}`}
+                viewBox="0 0 340 190"
+                preserveAspectRatio="none"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M 175 0 C 225 45, 245 125, 165 190 L 340 190 L 340 0 Z"
+                  fill="currentColor"
+                  fillOpacity="0.05"
+                />
+                <path
+                  d="M 230 0 C 275 45, 295 125, 235 190 L 340 190 L 340 0 Z"
+                  fill="currentColor"
+                  fillOpacity="0.04"
+                />
+                <circle
+                  cx="300"
+                  cy="35"
+                  r="65"
+                  fill="currentColor"
+                  fillOpacity="0.03"
+                />
+              </svg>
+
+              {/* Hover Shine Effect */}
+              <div
+                className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none z-20"
+                aria-hidden="true"
+              />
+
+              {/* Left: Title & Value/Text */}
+              <div className="relative z-10 flex flex-col justify-between space-y-0.5 sm:space-y-1 min-w-0 pr-1">
+                <span className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}>
+                  {card.title}
+                </span>
+                {card.isText ? (
+                  <div
+                    className="text-xs sm:text-[13px] lg:text-sm font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight line-clamp-2 leading-snug break-words"
+                    title={card.textValue}
+                  >
+                    {card.textValue}
+                  </div>
+                ) : (
+                  <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+                    <TickerNumber value={card.value || 0} />
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Big Icon (No Background, No Border) */}
+              <div className="relative z-10 shrink-0 pl-2 flex items-center justify-center">
+                {card.icon}
               </div>
             </div>
-
-            {/* Right: Big Icon (No Background, No Border) */}
-            <div className="relative z-10 shrink-0 pl-2 flex items-center justify-center">
-              {card.icon}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Scrollable Below Section (2-Column Content Layout: Left Latest Asset Read, Right Last 10 Movements) */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] pr-1">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 items-start pb-2">
-          {/* Left Column: Latest Asset Read Card (40% width on lg) - Compact & h-fit */}
-          <div
-            ref={leftCardRef}
-            className="lg:col-span-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] p-2.5 sm:p-3 flex flex-col shadow-2xs h-fit"
-          >
-            {/* Card Header */}
-            <div className="flex items-center justify-between pb-1.5 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
-                <h3 className="text-xs sm:text-sm font-bold text-[#171717] dark:text-[#EDEDED]">
-                  Latest Asset Read
-                </h3>
-              </div>
-              <span className="text-[10.5px] text-[#99958D] dark:text-[#888888] font-medium">
-                Read on EPC detection
-              </span>
+      {/* Content Section: Full Div Latest Asset Read Card, followed below by Movements Table */}
+      <div className="w-full flex flex-col space-y-3 sm:space-y-3.5">
+        {/* Full Div: Latest Asset Read Card */}
+        <div className="w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] p-3 sm:p-4 flex flex-col shadow-2xs">
+          {/* Card Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
+              <h3 className="text-xs sm:text-sm font-bold text-[#171717] dark:text-[#EDEDED]">
+                Latest Asset Read
+              </h3>
             </div>
+            <span className="text-[10.5px] text-[#99958D] dark:text-[#888888] font-medium">
+              Read on EPC detection
+            </span>
+          </div>
 
-            {/* Unified, Well-Organized Asset Details Container */}
-            <div className="mt-2.5 flex flex-col gap-2 sm:gap-2.5">
-              {/* Tile 1: Device Identity & Key Identifiers */}
-              <div className="p-2.5 sm:p-3 rounded-xl bg-[#FAF9F6] dark:bg-[#242424] border border-[#EAE7DF]/80 dark:border-[#2F2F2F] transition-all hover:border-[#00a8e7]/30">
+          {/* Unified, Well-Organized Asset Details Grid (2 Columns on md/lg for full width) */}
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3.5">
+            {/* Tile 1: Device Identity & Key Identifiers */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-[#FAF9F6] dark:bg-[#242424] border border-[#EAE7DF]/80 dark:border-[#2F2F2F] transition-all hover:border-[#00a8e7]/30">
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-8 h-8 rounded-xl bg-white dark:bg-[#1A1A1A] border border-[#EAE7DF] dark:border-[#333333] flex items-center justify-center shrink-0 shadow-2xs">
@@ -606,13 +621,12 @@ export const StoreDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Asset Movements DataTable (60% width on lg) - Matched Height */}
-          <div
-            style={leftCardHeight ? { height: `${leftCardHeight}px` } : undefined}
-            className="lg:col-span-7 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] flex flex-col justify-between shadow-2xs overflow-hidden"
-          >
-            {/* Table Toolbar Header (Same as Central Dashboard: Search, Rows, Export) */}
-            <div className="px-3 py-1.5 sm:px-3.5 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+        {/* Full Div: Asset Movements DataTable Card (Below Latest Asset Read) */}
+        <div
+          className="w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] flex flex-col justify-between shadow-2xs lg:overflow-visible overflow-hidden"
+        >
+            {/* Table Toolbar Header (Sticky on desktop below cards) */}
+            <div className="px-3 py-1.5 sm:px-3.5 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 lg:sticky lg:top-[213px] lg:z-15 rounded-t-2xl">
               {/* Left: Search input */}
               <div className="flex items-center gap-2 flex-1 max-w-xs sm:max-w-sm">
                 <div className="relative w-full">
@@ -652,9 +666,9 @@ export const StoreDashboard: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={handleExportCSV}
+                  onClick={handleExportExcel}
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-                  title="Export filtered movements to Excel/CSV"
+                  title="Export filtered movements to Excel (.xlsx)"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>Export to Excel</span>
@@ -662,10 +676,10 @@ export const StoreDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Table Container (Scrolls vertically within matched card height only if overflowing e.g. 10/20/all) */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin]">
+            {/* Table Container */}
+            <div className="w-full lg:overflow-visible overflow-x-auto [scrollbar-width:thin]">
               <table className="w-full table-fixed text-left border-collapse select-none text-xs">
-                <thead className="sticky top-0 z-10 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
+                <thead className="lg:sticky lg:top-[258px] lg:z-10 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
                   <tr>
                     <th
                       onClick={() => handleSort('dateTime')}
@@ -923,6 +937,5 @@ export const StoreDashboard: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
   )
 }

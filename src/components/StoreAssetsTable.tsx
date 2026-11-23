@@ -8,9 +8,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
-  X
+  X,
+  Eye
 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
+import { exportToExcel } from '../utils/excelExport'
 
 export type { StoreAssetRecord }
 export { DUMMY_STORE_RECORDS }
@@ -18,6 +20,7 @@ export { DUMMY_STORE_RECORDS }
 interface StoreAssetsTableProps {
   selectedStoreId?: string
   onClearStoreFilter?: () => void
+  onNavigateToStore?: (storeId: string) => void
   storesData?: StoreAssetRecord[]
   className?: string
 }
@@ -28,13 +31,14 @@ type SortOrder = 'asc' | 'desc'
 export default function StoreAssetsTable({
   selectedStoreId = 'all',
   onClearStoreFilter,
+  onNavigateToStore,
   storesData,
   className = ''
 }: StoreAssetsTableProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('totalAssets')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(5)
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
   const activeStores = storesData || DUMMY_STORE_RECORDS
@@ -166,40 +170,28 @@ export default function StoreAssetsTable({
     return pages
   }
 
-  // Column Totals for Table Footer (Total Tagged Assets - Asset Issuance = Available Assets)
-  const totals = useMemo(() => {
-    const totalAssets = filteredAndSortedRecords.reduce((sum, curr) => sum + curr.totalAssets, 0)
-    const totalOut = filteredAndSortedRecords.reduce((sum, curr) => sum + curr.totalOut, 0)
-    const totalIn = totalAssets - totalOut
-
-    return { totalAssets, totalOut, totalIn }
-  }, [filteredAndSortedRecords])
-
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
     const rows = filteredAndSortedRecords.map((r) => [
-      `"${r.storeName}"`,
+      r.storeName,
       r.totalAssets,
       r.totalOut,
       r.totalAssets - r.totalOut
     ])
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `stock_room_assets_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    exportToExcel(
+      headers,
+      rows,
+      `stock_room_assets_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Stock Rooms'
+    )
   }
 
   return (
     <div
-      className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] overflow-hidden flex flex-col min-h-0 ${className}`}
+      className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] lg:overflow-visible overflow-hidden flex flex-col ${className}`}
     >
-      {/* Table Toolbar Header */}
-      <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+      {/* Table Toolbar Header (Sticky on desktop below cards) */}
+      <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 lg:sticky lg:top-[213px] lg:z-15 rounded-t-2xl">
         {/* Left: Search input & Active Stock Room Filter Badge */}
         <div className="flex items-center gap-2 flex-1 max-w-lg flex-wrap sm:flex-nowrap">
           <div className="relative w-full max-w-sm">
@@ -257,9 +249,9 @@ export default function StoreAssetsTable({
           </div>
 
           <button
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-            title="Export filtered records to Excel/CSV"
+            title="Export filtered records to Excel (.xlsx)"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>Export to Excel</span>
@@ -267,11 +259,11 @@ export default function StoreAssetsTable({
         </div>
       </div>
 
-      {/* Fixed Header & Scrollable Body Table Container */}
-      <div className="relative flex-1 min-h-[140px] overflow-y-auto">
+      {/* Table Container */}
+      <div className="relative w-full lg:overflow-visible overflow-x-auto [scrollbar-width:thin]">
         <table className="w-full text-left border-collapse select-none">
-          {/* Fixed Sticky Table Header */}
-          <thead className="sticky top-0 z-20 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
+          {/* Table Header: Sticky below toolbar on desktop */}
+          <thead className="lg:sticky lg:top-[258px] lg:z-10 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
             <tr>
               {/* Column 1: Stock Room */}
               <th
@@ -345,11 +337,24 @@ export default function StoreAssetsTable({
                   key={record.id}
                   className="hover:bg-[#F8FAFC] dark:hover:bg-[#252830]/60 transition-colors"
                 >
-                  {/* Column 1: Stock Room (Clean text matching dropdown exactly) */}
+                  {/* Column 1: Stock Room (Clean text matching dropdown exactly) with View action */}
                   <td className="py-2 px-3 sm:px-4">
-                    <span className="font-semibold text-[#171717] dark:text-[#EDEDED] text-xs">
-                      {record.storeName}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-[#171717] dark:text-[#EDEDED] text-xs">
+                        {record.storeName}
+                      </span>
+                      {onNavigateToStore && (
+                        <button
+                          type="button"
+                          onClick={() => onNavigateToStore(record.id)}
+                          title={`View ${record.storeName} in Stock Room Dashboard`}
+                          aria-label={`View ${record.storeName} in Stock Room Dashboard`}
+                          className="p-1 rounded-md text-[#64748B] dark:text-[#94A3B8] hover:text-[#00a8e7] dark:hover:text-[#38bdf8] hover:bg-[#EBF8FE] dark:hover:bg-[#00a8e7]/10 transition-colors cursor-pointer shrink-0"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
 
                   {/* Column 2: Total Tagged Assets */}
@@ -376,44 +381,6 @@ export default function StoreAssetsTable({
               ))
             )}
           </tbody>
-
-          {/* Sticky Table Footer with Column Totals & Counts */}
-          <tfoot className="sticky bottom-0 z-10 bg-[#F4F7FB] dark:bg-[#252830] border-t border-[#D5DCE5] dark:border-[#383C48] shadow-2xs font-semibold text-xs">
-            <tr>
-              {/* Column 1: Total Count */}
-              <td className="py-2 px-3 sm:px-4">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-[11px] text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider">
-                    Total Count
-                  </span>
-                  <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
-                    ({totalRecords} {totalRecords === 1 ? 'stock room' : 'stock rooms'})
-                  </span>
-                </div>
-              </td>
-
-              {/* Column 2: Total Tagged Assets Sum */}
-              <td className="py-2 px-3 sm:px-4 text-right font-bold text-xs text-[#171717] dark:text-[#EDEDED] tabular-nums">
-                {totals.totalAssets.toLocaleString()}
-              </td>
-
-              {/* Column 3: Asset Issuance Sum */}
-              <td className="py-2 px-3 sm:px-4 text-right">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FFF7ED] dark:bg-[#7C2D12]/40 text-[#EA580C] dark:text-[#FB923C] font-bold tabular-nums text-xs">
-                  <ArrowUpRight className="w-3 h-3 shrink-0" />
-                  {totals.totalOut.toLocaleString()}
-                </span>
-              </td>
-
-              {/* Column 4: Available Assets Sum */}
-              <td className="py-2 px-3 sm:px-4 text-right">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#ECFDF5] dark:bg-[#064E3B]/40 text-[#059669] dark:text-[#34D399] font-bold tabular-nums text-xs">
-                  <ArrowDownLeft className="w-3 h-3 shrink-0" />
-                  {totals.totalIn.toLocaleString()}
-                </span>
-              </td>
-            </tr>
-          </tfoot>
         </table>
       </div>
 

@@ -11,7 +11,11 @@ import StoreFilter from './StoreFilter'
 import StoreAssetsTable from './StoreAssetsTable'
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 
-export const CentralDashboard: React.FC = () => {
+interface CentralDashboardProps {
+  onNavigateToStore?: (storeId: string) => void
+}
+
+export const CentralDashboard: React.FC<CentralDashboardProps> = ({ onNavigateToStore }) => {
   const [storeRecords, setStoreRecords] = useState<StoreAssetRecord[]>(DUMMY_STORE_RECORDS)
   const [currentTime, setCurrentTime] = useState<Date>(new Date())
   const [selectedStore, setSelectedStore] = useState('all')
@@ -161,105 +165,106 @@ export const CentralDashboard: React.FC = () => {
   ]
 
   return (
-    <div className="w-full h-full flex flex-col space-y-1.5 sm:space-y-2 min-h-0 overflow-hidden">
-      {/* Top Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-1 sm:pb-1.5 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
-            Central Dashboard
-          </h2>
-          <p className="text-[11px] text-[#99958D] dark:text-[#888888]">
-            Consolidated enterprise asset performance and real-time operational metrics.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          {/* Live Status Pill */}
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#5D9273]/30 bg-[#5D9273]/10 dark:bg-[#5D9273]/20 text-[#2E7D32] dark:text-[#4ADE80] text-xs font-bold tracking-wide select-none">
-            <span className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-[#4ADE80] animate-pulse shrink-0" />
-            <span>Live</span>
+    <div className="w-full flex-1 flex flex-col space-y-2 sm:space-y-2.5">
+      {/* Top Header Section & 4 KPI Cards: Sticky on desktop (lg:), scrolls naturally on smaller screens */}
+      <div className="lg:sticky lg:top-14 lg:z-20 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2 sm:space-y-2.5 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors">
+        {/* Top Header Section */}
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 sm:gap-2.5 pb-1.5 sm:pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight whitespace-nowrap">
+              Central Dashboard
+            </h2>
           </div>
 
-          {/* Time Pill */}
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
-            <Clock className="w-3.5 h-3.5 text-[#F5A23A] shrink-0" />
-            <span>{formatDateTime(currentTime)}</span>
-          </div>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {/* Live Status Pill */}
+            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#5D9273]/30 bg-[#5D9273]/10 dark:bg-[#5D9273]/20 text-[#2E7D32] dark:text-[#4ADE80] text-xs font-bold tracking-wide select-none">
+              <span className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-[#4ADE80] animate-pulse shrink-0" />
+              <span>Live</span>
+            </div>
 
-          {/* Stock Room Selection */}
-          <StoreFilter
-            selectedStore={selectedStore}
-            onStoreChange={(storeId) => setSelectedStore(storeId)}
-            stores={stockRoomOptions}
-          />
-        </div>
-      </div>
+            {/* Time Pill */}
+            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
+              <Clock className="w-3.5 h-3.5 text-[#F5A23A] shrink-0" />
+              <span>{formatDateTime(currentTime)}</span>
+            </div>
 
-      {/* 4 KPI Cards Grid (Increased Height, Rounded-2xl, Borderless Large Icons) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
-        {cards.map((card) => (
-          <div
-            key={card.id}
-            className={`group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[88px] sm:min-h-[96px] cursor-pointer`}
-          >
-            {/* Background Layer: Subtle Curved Wave Pattern */}
-            <svg
-              className={`absolute inset-0 w-full h-full pointer-events-none ${card.waveColor}`}
-              viewBox="0 0 340 190"
-              preserveAspectRatio="none"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M 175 0 C 225 45, 245 125, 165 190 L 340 190 L 340 0 Z"
-                fill="currentColor"
-                fillOpacity="0.05"
-              />
-              <path
-                d="M 230 0 C 275 45, 295 125, 235 190 L 340 190 L 340 0 Z"
-                fill="currentColor"
-                fillOpacity="0.04"
-              />
-              <circle
-                cx="300"
-                cy="35"
-                r="65"
-                fill="currentColor"
-                fillOpacity="0.03"
-              />
-            </svg>
-
-            {/* Hover Shine Effect */}
-            <div
-              className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none z-20"
-              aria-hidden="true"
+            {/* Stock Room Selection */}
+            <StoreFilter
+              selectedStore={selectedStore}
+              onStoreChange={(storeId) => setSelectedStore(storeId)}
+              stores={stockRoomOptions}
             />
+          </div>
+        </div>
 
-            {/* Left: Title & Big Number */}
-            <div className="relative z-10 flex flex-col justify-between space-y-1 min-w-0">
-              <span className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}>
-                {card.title}
-              </span>
-              <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
-                <TickerNumber value={card.value} />
+        {/* 4 KPI Cards Grid (Increased Height, Rounded-2xl, Borderless Large Icons) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
+          {cards.map((card) => (
+            <div
+              key={card.id}
+              className={`group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[88px] sm:min-h-[96px] cursor-pointer`}
+            >
+              {/* Background Layer: Subtle Curved Wave Pattern */}
+              <svg
+                className={`absolute inset-0 w-full h-full pointer-events-none ${card.waveColor}`}
+                viewBox="0 0 340 190"
+                preserveAspectRatio="none"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M 175 0 C 225 45, 245 125, 165 190 L 340 190 L 340 0 Z"
+                  fill="currentColor"
+                  fillOpacity="0.05"
+                />
+                <path
+                  d="M 230 0 C 275 45, 295 125, 235 190 L 340 190 L 340 0 Z"
+                  fill="currentColor"
+                  fillOpacity="0.04"
+                />
+                <circle
+                  cx="300"
+                  cy="35"
+                  r="65"
+                  fill="currentColor"
+                  fillOpacity="0.03"
+                />
+              </svg>
+
+              {/* Hover Shine Effect */}
+              <div
+                className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none z-20"
+                aria-hidden="true"
+              />
+
+              {/* Left: Title & Big Number */}
+              <div className="relative z-10 flex flex-col justify-between space-y-1 min-w-0">
+                <span className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}>
+                  {card.title}
+                </span>
+                <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+                  <TickerNumber value={card.value} />
+                </div>
+              </div>
+
+              {/* Right: Big Icon (No Background, No Border) */}
+              <div className="relative z-10 shrink-0 pl-2 flex items-center justify-center">
+                {card.icon}
               </div>
             </div>
-
-            {/* Right: Big Icon (No Background, No Border) */}
-            <div className="relative z-10 shrink-0 pl-2 flex items-center justify-center">
-              {card.icon}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Stores Assets Performance Table with clean separation space */}
-      <div className="flex-1 min-h-0 flex flex-col mt-2.5 sm:mt-3.5 overflow-hidden">
+      <div className="flex-1 flex flex-col mt-2 sm:mt-2.5">
         <StoreAssetsTable
           selectedStoreId={selectedStore}
           onClearStoreFilter={() => setSelectedStore('all')}
+          onNavigateToStore={onNavigateToStore}
           storesData={storeRecords}
-          className="flex-1 min-h-0 flex flex-col"
+          className="w-full flex flex-col"
         />
       </div>
     </div>

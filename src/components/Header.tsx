@@ -28,9 +28,9 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 h-12 sm:h-14 px-3 sm:px-5 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1]/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
+    <header className="sticky top-0 z-50 h-12 sm:h-14 pl-2 sm:pl-3 pr-3 sm:pr-5 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1]/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
       <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
-        <div className="px-1 sm:px-0 py-1 sm:py-0 flex items-center shrink-0">
+        <div className="flex items-center shrink-0">
           <img
             src={theme === 'dark' ? wiproLogoWhite : wiproLogo}
             alt="Wipro"
@@ -39,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
           />
         </div>
 
-        <h1 className="hidden md:block text-sm sm:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap">
+        <h1 className="hidden lg:block text-sm sm:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap truncate">
           HAM Pro Asset Management System
         </h1>
       </div>

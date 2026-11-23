@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   XCircle,
   Plus,
-  RotateCcw,
   Search,
   FileSpreadsheet,
   ArrowUpDown,
@@ -19,8 +18,10 @@ import {
   Trash2,
   Power,
   Copy,
-  Check
+  Check,
+  X
 } from 'lucide-react'
+import { exportToExcel } from '../utils/excelExport'
 
 export interface UserMasterRecord {
   id: string
@@ -132,6 +133,15 @@ const INITIAL_USERS: UserMasterRecord[] = [
     contactNumber: '+91 98460 12345',
     isStatus: 'Active',
     createdAt: '2026-11-20 09:05:00'
+  },
+  {
+    id: 'usr-12',
+    userName: 'karthik.iyer',
+    password: 'Karthik!Bang26',
+    email: 'karthik.iyer@wipro.com',
+    contactNumber: '+91 98461 23456',
+    isStatus: 'Active',
+    createdAt: '2026-11-20 11:30:00'
   }
 ]
 
@@ -150,6 +160,7 @@ export const UserMaster: React.FC = () => {
   const [isStatus, setIsStatus] = useState<'Active' | 'Inactive'>('Active')
   const [showPassword, setShowPassword] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Copied password state for quick feedback
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -172,7 +183,7 @@ export const UserMaster: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(5)
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
   // Metrics summary
@@ -264,6 +275,7 @@ export const UserMaster: React.FC = () => {
       )
       showNotification('success', `User "${cleanUserName}" updated successfully!`)
       handleClear()
+      setIsModalOpen(false)
     } else {
       // Check duplicate username
       const exists = records.some(
@@ -289,6 +301,7 @@ export const UserMaster: React.FC = () => {
       showNotification('success', `User "${cleanUserName}" created successfully!`)
       setCurrentPage(1)
       handleClear()
+      setIsModalOpen(false)
     }
   }
 
@@ -303,6 +316,17 @@ export const UserMaster: React.FC = () => {
     setErrors({})
   }
 
+  const handleOpenAddModal = () => {
+    handleClear()
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setEditingId(null)
+    setErrors({})
+  }
+
   const handleEdit = (record: UserMasterRecord) => {
     setEditingId(record.id)
     setUserName(record.userName)
@@ -311,7 +335,7 @@ export const UserMaster: React.FC = () => {
     setContactNumber(record.contactNumber)
     setIsStatus(record.isStatus)
     setErrors({})
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setIsModalOpen(true)
   }
 
   const handleDelete = (id: string, name: string) => {
@@ -412,29 +436,25 @@ export const UserMaster: React.FC = () => {
     return pages
   }
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const headers = ['User Name', 'Email', 'Contact Number', 'Status', 'Date Added']
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    const headers = ['User Name', 'Email', 'Contact Number', 'Status']
     const rows = filteredRecords.map((r) => [
-      `"${r.userName}"`,
-      `"${r.email}"`,
-      `"${r.contactNumber}"`,
-      `"${r.isStatus}"`,
-      `"${r.createdAt}"`
+      r.userName,
+      r.email,
+      r.contactNumber,
+      r.isStatus
     ])
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `user_master_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    exportToExcel(
+      headers,
+      rows,
+      `user_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Users'
+    )
   }
 
   return (
-    <div className="w-full h-full flex flex-col space-y-3 min-h-0 overflow-y-auto select-none pr-1">
+    <div className="w-full flex-1 flex flex-col space-y-2.5 select-none">
       {/* Toast Notification */}
       {notification && (
         <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
@@ -456,18 +476,15 @@ export const UserMaster: React.FC = () => {
       )}
 
       {/* Page Header & Metric Pills */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight whitespace-nowrap">
             User Master
           </h2>
-          <p className="mt-0.5 text-xs text-[#99958D] dark:text-[#888888]">
-            Manage application user accounts, authentication credentials, contact info, and active status.
-          </p>
         </div>
 
-        {/* Quick Metric Pills */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        {/* Quick Metric Pills & Add User Button */}
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#FAF9F6] dark:bg-[#222222] border border-[#EAE7DF] dark:border-[#2C2C2C] text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
             <User className="w-3.5 h-3.5 text-[#1D63ED]" />
             <span>Total:</span>
@@ -483,228 +500,19 @@ export const UserMaster: React.FC = () => {
             <span>Inactive:</span>
             <span className="font-bold">{inactiveCount}</span>
           </div>
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer ml-1"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Add User</span>
+          </button>
         </div>
-      </div>
-
-      {/* User Master Form Card */}
-      <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs shrink-0 overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-[#FAF9F6] dark:bg-[#252525] border border-[#EAE7DF] dark:border-[#333333] flex items-center justify-center">
-              {editingId ? (
-                <Edit2 className="w-3.5 h-3.5 text-[#1D63ED]" />
-              ) : (
-                <Plus className="w-3.5 h-3.5 text-[#171717] dark:text-[#EDEDED]" />
-              )}
-            </div>
-            <h3 className="text-xs sm:text-sm font-bold text-[#171717] dark:text-[#EDEDED]">
-              {editingId ? 'Edit User Credentials & Details' : 'Add New User'}
-            </h3>
-            {editingId && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D63ED] border border-[#BFDBFE] dark:bg-[#1E3A8A]/30 dark:border-[#1E3A8A] dark:text-[#93C5FD]">
-                Editing Mode
-              </span>
-            )}
-          </div>
-
-          {editingId && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="text-xs font-medium text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Cancel Edit
-            </button>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-3.5 sm:p-4 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            {/* [USER_NAME] */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1">
-                User Name <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-                <input
-                  type="text"
-                  value={userName}
-                  onChange={(e) => {
-                    setUserName(e.target.value)
-                    if (errors.userName) setErrors((prev) => ({ ...prev, userName: undefined }))
-                  }}
-                  placeholder="e.g. rohan.gupta"
-                  className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-8 pr-3 py-2 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
-                    errors.userName
-                      ? 'border-[#DC2626] dark:border-[#DC2626]'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
-                  }`}
-                />
-              </div>
-              {errors.userName && (
-                <p className="mt-1 text-[10.5px] font-medium text-[#DC2626]">{errors.userName}</p>
-              )}
-            </div>
-
-            {/* [PASSWORD] */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1">
-                Password <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
-                  }}
-                  placeholder="••••••••"
-                  className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-8 pr-8 py-2 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
-                    errors.password
-                      ? 'border-[#DC2626] dark:border-[#DC2626]'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1 text-[10.5px] font-medium text-[#DC2626]">{errors.password}</p>
-              )}
-            </div>
-
-            {/* [EMAIL] */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1">
-                Email Address <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value)
-                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
-                  }}
-                  placeholder="e.g. user@wipro.com"
-                  className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-8 pr-3 py-2 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
-                    errors.email
-                      ? 'border-[#DC2626] dark:border-[#DC2626]'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
-                  }`}
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-1 text-[10.5px] font-medium text-[#DC2626]">{errors.email}</p>
-              )}
-            </div>
-
-            {/* [CONTACT_NUMBER] */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1">
-                Contact Number <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-                <input
-                  type="text"
-                  value={contactNumber}
-                  onChange={(e) => {
-                    setContactNumber(e.target.value)
-                    if (errors.contactNumber)
-                      setErrors((prev) => ({ ...prev, contactNumber: undefined }))
-                  }}
-                  placeholder="e.g. +91 98450 12345"
-                  className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-8 pr-3 py-2 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
-                    errors.contactNumber
-                      ? 'border-[#DC2626] dark:border-[#DC2626]'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
-                  }`}
-                />
-              </div>
-              {errors.contactNumber && (
-                <p className="mt-1 text-[10.5px] font-medium text-[#DC2626]">
-                  {errors.contactNumber}
-                </p>
-              )}
-            </div>
-
-            {/* [IS_STATUS] */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1">
-                Status 
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 h-[34px]">
-                <button
-                  type="button"
-                  onClick={() => setIsStatus('Active')}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                    isStatus === 'Active'
-                      ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] shadow-xs dark:bg-[#064E3B] dark:text-[#34D399] dark:border-[#059669]'
-                      : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
-                  Active
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsStatus('Inactive')}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                    isStatus === 'Inactive'
-                      ? 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] shadow-xs dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
-                      : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
-                  Inactive
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Form Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#EAE7DF]/50 dark:border-[#2C2C2C]">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Clear</span>
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              {editingId ? (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Update User</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Save User</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
       </div>
 
       {/* Inserted Records DataTable Card */}
-      <div className="flex-1 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs flex flex-col min-h-0 overflow-hidden">
+      <div className="w-full flex-1 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs flex flex-col overflow-hidden">
         {/* Table Toolbar */}
         <div className="p-3 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
           {/* Search Box */}
@@ -745,20 +553,31 @@ export const UserMaster: React.FC = () => {
             {/* Export to Excel Button */}
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Export filtered records to CSV"
+              title="Export filtered records to Excel (.xlsx)"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Export to Excel</span>
+            </button>
+
+            {/* Add User Button */}
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#1D63ED] hover:bg-[#1854CD] text-white text-xs font-semibold transition-colors cursor-pointer"
+              title="Add a new user"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Add User</span>
             </button>
           </div>
         </div>
 
         {/* Scrollable Table Body */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0">
+        <div className="relative w-full overflow-x-auto [scrollbar-width:thin]">
           <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 z-10 bg-[#FAF9F6] dark:bg-[#232323] border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] text-[11px] font-bold text-[#666666] dark:text-[#A0A0A0] uppercase tracking-wider">
+            <thead className="bg-[#FAF9F6] dark:bg-[#232323] border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] text-[11px] font-bold text-[#666666] dark:text-[#A0A0A0] uppercase tracking-wider">
               <tr>
                 <th
                   onClick={() => handleSort('userName')}
@@ -805,15 +624,6 @@ export const UserMaster: React.FC = () => {
                     <ArrowUpDown className="w-3 h-3 text-[#99958D]" />
                   </div>
                 </th>
-                <th
-                  onClick={() => handleSort('createdAt')}
-                  className="py-2.5 px-3 cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>DATE ADDED</span>
-                    <ArrowUpDown className="w-3 h-3 text-[#99958D]" />
-                  </div>
-                </th>
                 <th className="py-2.5 px-3 text-right">
                   <span>ACTIONS</span>
                 </th>
@@ -822,7 +632,7 @@ export const UserMaster: React.FC = () => {
             <tbody className="divide-y divide-[#EAE7DF]/50 dark:divide-[#2C2C2C] text-xs">
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-xs text-[#99958D] dark:text-[#737373]">
+                  <td colSpan={6} className="py-8 text-center text-xs text-[#99958D] dark:text-[#737373]">
                     No user records match your search criteria.
                   </td>
                 </tr>
@@ -912,11 +722,6 @@ export const UserMaster: React.FC = () => {
                         />
                         <span>{item.isStatus}</span>
                       </button>
-                    </td>
-
-                    {/* Date Added */}
-                    <td className="py-2 px-3 text-[11px] text-[#64748B] dark:text-[#94A3B8] tabular-nums whitespace-nowrap">
-                      {item.createdAt}
                     </td>
 
                     {/* Actions */}
@@ -1037,6 +842,234 @@ export const UserMaster: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Add / Edit User Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
+                  {editingId ? <Edit2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED]">
+                    {editingId ? 'Edit User Credentials & Details' : 'Add New User'}
+                  </h3>
+                  <p className="text-xs text-[#99958D] dark:text-[#888888] mt-0.5">
+                    {editingId
+                      ? 'Modify credentials, contact info, and active status.'
+                      : 'Create a new user account with system credentials.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 sm:space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* [USER_NAME] */}
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                    User Name <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => {
+                        setUserName(e.target.value)
+                        if (errors.userName) setErrors((prev) => ({ ...prev, userName: undefined }))
+                      }}
+                      placeholder="e.g. rohan.gupta"
+                      className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
+                        errors.userName
+                          ? 'border-[#DC2626] dark:border-[#DC2626]'
+                          : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
+                      }`}
+                    />
+                  </div>
+                  {errors.userName && (
+                    <p className="mt-1.5 text-xs font-medium text-[#DC2626]">{errors.userName}</p>
+                  )}
+                </div>
+
+                {/* [PASSWORD] */}
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                    Password <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value)
+                        if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
+                      }}
+                      placeholder="••••••••"
+                      className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-10 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
+                        errors.password
+                          ? 'border-[#DC2626] dark:border-[#DC2626]'
+                          : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p className="mt-1.5 text-xs font-medium text-[#DC2626]">{errors.password}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* [EMAIL] & [CONTACT_NUMBER] */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* [EMAIL] */}
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                    Email Address <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
+                      }}
+                      placeholder="e.g. user@wipro.com"
+                      className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
+                        errors.email
+                          ? 'border-[#DC2626] dark:border-[#DC2626]'
+                          : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
+                      }`}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="mt-1.5 text-xs font-medium text-[#DC2626]">{errors.email}</p>
+                  )}
+                </div>
+
+                {/* [CONTACT_NUMBER] */}
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                    Contact Number <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
+                    <input
+                      type="text"
+                      value={contactNumber}
+                      onChange={(e) => {
+                        setContactNumber(e.target.value)
+                        if (errors.contactNumber)
+                          setErrors((prev) => ({ ...prev, contactNumber: undefined }))
+                      }}
+                      placeholder="e.g. +91 98450 12345"
+                      className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
+                        errors.contactNumber
+                          ? 'border-[#DC2626] dark:border-[#DC2626]'
+                          : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
+                      }`}
+                    />
+                  </div>
+                  {errors.contactNumber && (
+                    <p className="mt-1.5 text-xs font-medium text-[#DC2626]">
+                      {errors.contactNumber}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* [IS_STATUS] */}
+              <div>
+                <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
+                  Status
+                </label>
+                <div className="grid grid-cols-2 gap-3 h-11">
+                  <button
+                    type="button"
+                    onClick={() => setIsStatus('Active')}
+                    className={`flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
+                      isStatus === 'Active'
+                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] shadow-xs dark:bg-[#064E3B] dark:text-[#34D399] dark:border-[#059669]'
+                        : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
+                    <span>Active</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsStatus('Inactive')}
+                    className={`flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
+                      isStatus === 'Inactive'
+                        ? 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] shadow-xs dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
+                        : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
+                    <span>Inactive</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Footer Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  {editingId ? (
+                    <>
+                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <span>Update User</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                      <span>Save User</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

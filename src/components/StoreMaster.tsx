@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   XCircle,
   Plus,
-  RotateCcw,
   Search,
   FileSpreadsheet,
   ArrowUpDown,
@@ -15,8 +14,10 @@ import {
   Edit2,
   Trash2,
   Check,
-  Power
+  Power,
+  X
 } from 'lucide-react'
+import { exportToExcel } from '../utils/excelExport'
 
 export interface StockRoomMasterRecord {
   id: string
@@ -108,6 +109,22 @@ const INITIAL_STOCK_ROOMS: StockRoomMasterRecord[] = [
     stockRoomLead: 'Amit Shah',
     status: 'Active',
     createdAt: '2026-11-20 10:05:00'
+  },
+  {
+    id: 'srm-11',
+    stockRoomName: 'IND-KAR-BLR-KOD-S1-GF-NO WING-IV',
+    stockRoomEngineer: 'Swati Pillai',
+    stockRoomLead: 'Priyanka Joshi',
+    status: 'Active',
+    createdAt: '2026-11-20 13:40:00'
+  },
+  {
+    id: 'srm-12',
+    stockRoomName: 'IND-HAR-Gurugram-Blackstone-ONYX-2F',
+    stockRoomEngineer: 'Manoj Sharma',
+    stockRoomLead: 'Vikram Patel',
+    status: 'Active',
+    createdAt: '2026-11-20 15:15:00'
   }
 ]
 
@@ -124,6 +141,7 @@ export const StoreMaster: React.FC = () => {
   const [stockRoomLead, setStockRoomLead] = useState('')
   const [status, setStatus] = useState<'Active' | 'Inactive'>('Active')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Validation errors & feedback banner
   const [errors, setErrors] = useState<{
@@ -140,7 +158,7 @@ export const StoreMaster: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(5)
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
   // Metrics summary
@@ -229,8 +247,9 @@ export const StoreMaster: React.FC = () => {
       setCurrentPage(1)
     }
 
-    // Reset Form
+    // Reset Form & close modal
     handleClear()
+    setIsModalOpen(false)
   }
 
   const handleClear = () => {
@@ -242,6 +261,17 @@ export const StoreMaster: React.FC = () => {
     setErrors({})
   }
 
+  const handleOpenAddModal = () => {
+    handleClear()
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setEditingId(null)
+    setErrors({})
+  }
+
   const handleEdit = (record: StockRoomMasterRecord) => {
     setEditingId(record.id)
     setStockRoomName(record.stockRoomName)
@@ -249,7 +279,7 @@ export const StoreMaster: React.FC = () => {
     setStockRoomLead(record.stockRoomLead)
     setStatus(record.status)
     setErrors({})
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setIsModalOpen(true)
   }
 
   const handleDelete = (id: string, name: string) => {
@@ -335,29 +365,25 @@ export const StoreMaster: React.FC = () => {
     return pages
   }
 
-  // Export to Excel / CSV
-  const handleExportCSV = () => {
-    const headers = ['Stock Room', 'Stockroom Engineer', 'Stockroom Lead', 'Status', 'Date Added']
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    const headers = ['Stock Room', 'Stockroom Engineer', 'Stockroom Lead', 'Status']
     const rows = filteredRecords.map((r) => [
-      `"${r.stockRoomName}"`,
-      `"${r.stockRoomEngineer}"`,
-      `"${r.stockRoomLead}"`,
-      `"${r.status}"`,
-      `"${r.createdAt}"`
+      r.stockRoomName,
+      r.stockRoomEngineer,
+      r.stockRoomLead,
+      r.status
     ])
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `stock_room_master_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    exportToExcel(
+      headers,
+      rows,
+      `stock_room_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Stock Rooms'
+    )
   }
 
   return (
-    <div className="w-full h-full flex flex-col space-y-3 min-h-0 overflow-y-auto select-none pr-1">
+    <div className="w-full flex-1 flex flex-col space-y-2.5 select-none">
       {/* Notification Toast */}
       {notification && (
         <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
@@ -379,18 +405,15 @@ export const StoreMaster: React.FC = () => {
       )}
 
       {/* Header & Metrics Overview */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] shrink-0">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 pb-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] shrink-0">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight whitespace-nowrap">
             Stock Room Master
           </h2>
-          <p className="text-[11px] text-[#99958D] dark:text-[#888888]">
-            Configure stock rooms, assign engineers & leads, and manage operational status.
-          </p>
         </div>
 
-        {/* Quick KPI Count Badges */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Quick KPI Count Badges & Add Button */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <div className="h-8 px-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] flex items-center gap-1.5 text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
             <Building2 className="w-3.5 h-3.5 text-[#1D63ED] shrink-0" />
             <span>Total:</span>
@@ -408,170 +431,20 @@ export const StoreMaster: React.FC = () => {
             <span>Inactive:</span>
             <strong className="font-bold tabular-nums">{inactiveCount}</strong>
           </div>
+
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer ml-1"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Add Stock Room</span>
+          </button>
         </div>
-      </div>
-
-      {/* Input Form Card: Stock Room, Stockroom Engineer, Stockroom Lead, Active/Inactive Status */}
-      <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] p-3 sm:p-4 shadow-2xs shrink-0">
-        <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
-              {editingId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            </div>
-            <h3 className="text-xs sm:text-sm font-bold text-[#171717] dark:text-[#EDEDED]">
-              {editingId ? 'Edit Stock Room' : 'Add New Stock Room'}
-            </h3>
-          </div>
-
-          {editingId && (
-            <span className="text-[11px] font-semibold text-[#F5A23A] bg-[#FFFBEB] dark:bg-[#78350F]/30 px-2 py-0.5 rounded-md border border-[#FDE68A] dark:border-[#B45309]">
-              Editing Mode
-            </span>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Field 1: Stock Room */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1">
-                Stock Room <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <Building2 className="w-3.5 h-3.5 text-[#99958D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="e.g. IND-AND-VIZAG-S1-1F-NO WING-UI"
-                  value={stockRoomName}
-                  onChange={(e) => {
-                    setStockRoomName(e.target.value)
-                    if (errors.stockRoomName) setErrors((prev) => ({ ...prev, stockRoomName: undefined }))
-                  }}
-                  className={`w-full pl-8 pr-2.5 py-1.5 text-xs bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
-                    errors.stockRoomName
-                      ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
-                  }`}
-                />
-              </div>
-              {errors.stockRoomName && (
-                <p className="mt-1 text-[10px] text-[#DC2626] font-medium">{errors.stockRoomName}</p>
-              )}
-            </div>
-
-            {/* Field 2: Stockroom Engineer */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1">
-                Stockroom Engineer <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <User className="w-3.5 h-3.5 text-[#99958D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="e.g. Manoj Sharma"
-                  value={stockRoomEngineer}
-                  onChange={(e) => {
-                    setStockRoomEngineer(e.target.value)
-                    if (errors.stockRoomEngineer) setErrors((prev) => ({ ...prev, stockRoomEngineer: undefined }))
-                  }}
-                  className={`w-full pl-8 pr-2.5 py-1.5 text-xs bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
-                    errors.stockRoomEngineer
-                      ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
-                  }`}
-                />
-              </div>
-              {errors.stockRoomEngineer && (
-                <p className="mt-1 text-[10px] text-[#DC2626] font-medium">{errors.stockRoomEngineer}</p>
-              )}
-            </div>
-
-            {/* Field 3: Stockroom Lead */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1">
-                Stockroom Lead <span className="text-[#DC2626]">*</span>
-              </label>
-              <div className="relative">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#99958D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="e.g. Suresh Nair"
-                  value={stockRoomLead}
-                  onChange={(e) => {
-                    setStockRoomLead(e.target.value)
-                    if (errors.stockRoomLead) setErrors((prev) => ({ ...prev, stockRoomLead: undefined }))
-                  }}
-                  className={`w-full pl-8 pr-2.5 py-1.5 text-xs bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
-                    errors.stockRoomLead
-                      ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
-                      : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
-                  }`}
-                />
-              </div>
-              {errors.stockRoomLead && (
-                <p className="mt-1 text-[10px] text-[#DC2626] font-medium">{errors.stockRoomLead}</p>
-              )}
-            </div>
-
-            {/* Field 4: Active / Inactive Status */}
-            <div>
-              <label className="block text-[11px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1">
-                Status
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 h-8">
-                <button
-                  type="button"
-                  onClick={() => setStatus('Active')}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                    status === 'Active'
-                      ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] shadow-xs dark:bg-[#064E3B] dark:text-[#34D399] dark:border-[#059669]'
-                      : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${status === 'Active' ? 'bg-[#059669] dark:bg-[#34D399]' : 'bg-[#99958D]'}`} />
-                  <span>Active</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setStatus('Inactive')}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                    status === 'Inactive'
-                      ? 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] shadow-xs dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
-                      : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${status === 'Inactive' ? 'bg-[#DC2626] dark:bg-[#F87171]' : 'bg-[#99958D]'}`} />
-                  <span>Inactive</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Form Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#EAE7DF]/40 dark:border-[#2C2C2C]">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>{editingId ? 'Cancel' : 'Clear'}</span>
-            </button>
-
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              {editingId ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : <Plus className="w-3.5 h-3.5 stroke-[2.5]" />}
-              <span>{editingId ? 'Update Stock Room' : 'Save Stock Room'}</span>
-            </button>
-          </div>
-        </form>
       </div>
 
       {/* Inserted Data Table Card */}
-      <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] overflow-hidden flex flex-col shadow-2xs">
+      <div className="w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] overflow-hidden flex flex-col shadow-2xs flex-1">
         {/* Table Toolbar Header */}
         <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
           {/* Left: Search Input */}
@@ -613,20 +486,30 @@ export const StoreMaster: React.FC = () => {
 
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Export filtered records to Excel/CSV"
+              title="Export filtered records to Excel (.xlsx)"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Export to Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#1D63ED] hover:bg-[#1854CD] text-white text-xs font-semibold transition-colors cursor-pointer"
+              title="Add a new stock room"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Add Stock Room</span>
             </button>
           </div>
         </div>
 
         {/* Scrollable Table Body */}
-        <div className="flex-1 min-h-[160px] overflow-x-auto [scrollbar-width:thin]">
+        <div className="relative w-full overflow-x-auto [scrollbar-width:thin]">
           <table className="w-full text-left border-collapse select-none text-xs">
-            <thead className="sticky top-0 z-10 bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs">
+            <thead className="bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C]">
               <tr>
                 <th
                   onClick={() => handleSort('stockRoomName')}
@@ -671,16 +554,6 @@ export const StoreMaster: React.FC = () => {
                   </div>
                 </th>
 
-                <th
-                  onClick={() => handleSort('createdAt')}
-                  className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider cursor-pointer hover:text-[#171717] dark:hover:text-white transition-colors w-[130px]"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Date Added</span>
-                    <ArrowUpDown className="w-3 h-3 text-[#94A3B8] shrink-0" />
-                  </div>
-                </th>
-
                 <th className="py-2 px-3 text-[10px] font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider text-right w-[90px]">
                   <span>Actions</span>
                 </th>
@@ -689,7 +562,7 @@ export const StoreMaster: React.FC = () => {
             <tbody className="divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C]">
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[#99958D]">
+                  <td colSpan={5} className="py-8 text-center text-[#99958D]">
                     <p className="font-medium text-xs">No matching stock room records found.</p>
                     {searchQuery && (
                       <button
@@ -753,11 +626,6 @@ export const StoreMaster: React.FC = () => {
                         />
                         <span>{item.status}</span>
                       </button>
-                    </td>
-
-                    {/* Date Added */}
-                    <td className="py-2 px-3 text-[11px] text-[#64748B] dark:text-[#94A3B8] tabular-nums whitespace-nowrap">
-                      {item.createdAt}
                     </td>
 
                     {/* Actions */}
@@ -873,6 +741,190 @@ export const StoreMaster: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Add / Edit Stock Room Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
+                  {editingId ? <Edit2 className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#171717] dark:text-[#EDEDED]">
+                    {editingId ? 'Edit Stock Room' : 'Add New Stock Room'}
+                  </h3>
+                  <p className="text-xs text-[#99958D] dark:text-[#888888] mt-0.5">
+                    {editingId
+                      ? 'Modify stock room configuration & operational assignments.'
+                      : 'Register a new stock room location and assign personnel.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 sm:space-y-5">
+              {/* Field 1: Stock Room Name */}
+              <div>
+                <label className="block text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1.5">
+                  Stock Room <span className="text-[#DC2626]">*</span>
+                </label>
+                <div className="relative">
+                  <Building2 className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="e.g. IND-AND-VIZAG-S1-1F-NO WING-UI"
+                    value={stockRoomName}
+                    onChange={(e) => {
+                      setStockRoomName(e.target.value)
+                      if (errors.stockRoomName) setErrors((prev) => ({ ...prev, stockRoomName: undefined }))
+                    }}
+                    className={`w-full pl-10 pr-3.5 py-2.5 text-sm bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
+                      errors.stockRoomName
+                        ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
+                        : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
+                    }`}
+                  />
+                </div>
+                {errors.stockRoomName && (
+                  <p className="mt-1.5 text-xs text-[#DC2626] font-medium">{errors.stockRoomName}</p>
+                )}
+              </div>
+
+              {/* Field 2 & 3: Stockroom Engineer & Stockroom Lead */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1.5">
+                    Stockroom Engineer <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Manoj Sharma"
+                      value={stockRoomEngineer}
+                      onChange={(e) => {
+                        setStockRoomEngineer(e.target.value)
+                        if (errors.stockRoomEngineer)
+                          setErrors((prev) => ({ ...prev, stockRoomEngineer: undefined }))
+                      }}
+                      className={`w-full pl-10 pr-3.5 py-2.5 text-sm bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
+                        errors.stockRoomEngineer
+                          ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
+                          : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
+                      }`}
+                    />
+                  </div>
+                  {errors.stockRoomEngineer && (
+                    <p className="mt-1.5 text-xs text-[#DC2626] font-medium">
+                      {errors.stockRoomEngineer}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1.5">
+                    Stockroom Lead <span className="text-[#DC2626]">*</span>
+                  </label>
+                  <div className="relative">
+                    <ShieldCheck className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Suresh Nair"
+                      value={stockRoomLead}
+                      onChange={(e) => {
+                        setStockRoomLead(e.target.value)
+                        if (errors.stockRoomLead)
+                          setErrors((prev) => ({ ...prev, stockRoomLead: undefined }))
+                      }}
+                      className={`w-full pl-10 pr-3.5 py-2.5 text-sm bg-[#FAF9F6] dark:bg-[#181818] rounded-xl border outline-none text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all ${
+                        errors.stockRoomLead
+                          ? 'border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20'
+                          : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20'
+                      }`}
+                    />
+                  </div>
+                  {errors.stockRoomLead && (
+                    <p className="mt-1.5 text-xs text-[#DC2626] font-medium">
+                      {errors.stockRoomLead}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Field 4: Status */}
+              <div>
+                <label className="block text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1.5">
+                  Status
+                </label>
+                <div className="grid grid-cols-2 gap-3 h-11">
+                  <button
+                    type="button"
+                    onClick={() => setStatus('Active')}
+                    className={`flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
+                      status === 'Active'
+                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] shadow-xs dark:bg-[#064E3B] dark:text-[#34D399] dark:border-[#059669]'
+                        : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
+                    }`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${status === 'Active' ? 'bg-[#059669] dark:bg-[#34D399]' : 'bg-[#99958D]'}`} />
+                    <span>Active</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus('Inactive')}
+                    className={`flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
+                      status === 'Inactive'
+                        ? 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] shadow-xs dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
+                        : 'bg-[#FAF9F6] dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333] hover:bg-[#F3F1EA]'
+                    }`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${status === 'Inactive' ? 'bg-[#DC2626] dark:bg-[#F87171]' : 'bg-[#99958D]'}`} />
+                    <span>Inactive</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Footer Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  {editingId ? <Check className="w-4 h-4 stroke-[2.5]" /> : <Plus className="w-4 h-4 stroke-[2.5]" />}
+                  <span>{editingId ? 'Update Stock Room' : 'Save Stock Room'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
