@@ -277,12 +277,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           assetTag: data.asset.assetTag,
           serialNumber: data.asset.serialNumber,
           makeModel: data.asset.makeModel,
-          assetType: '',
-          subAssetType: '',
+          assetType: data.asset.assetType || '',
+          subAssetType: data.asset.subAssetType || '',
           assetDescription: data.asset.assetDescription,
           stockroomName: data.stockroomName,
-          assetState: '',
-          serviceRequest: '',
+          assetState: data.asset.assetState || '',
+          serviceRequest: data.asset.serviceRequest || '',
           rfidEpc: data.asset.rfidEpc,
           move: data.asset.move,
           movementDateTime: data.asset.movementDateTime
@@ -311,7 +311,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         setMovementRows((prevRows) => {
           const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
           const remaining = prevRows.filter(
-            (r) => r.rfidEpc !== data.asset.rfidEpc || r.assetTag !== data.asset.assetTag
+            (r) => r.rfidEpc !== data.asset.rfidEpc && r.assetTag !== data.asset.assetTag
           )
 
           const newRow: StockroomMovementRow = {
@@ -321,15 +321,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             serialNumber: data.asset.serialNumber,
             makeModel: data.asset.makeModel,
             assetDescription: data.asset.assetDescription,
-            assetType: '',
-            subAssetType: '',
-            assetState: '',
+            assetType: data.asset.assetType || '',
+            subAssetType: data.asset.subAssetType || '',
+            assetState: data.asset.assetState || '',
             rfidEpc: data.asset.rfidEpc,
             move: data.asset.move
           }
 
           return [newRow, ...remaining].slice(0, numericPageSize)
         })
+
+        // 4. Trigger background refresh to keep totals and pagination 100% synchronized
+        setRealtimeRefreshTick((prev) => prev + 1)
       })
 
       // 4. On Undo / Rollback event: refresh data automatically

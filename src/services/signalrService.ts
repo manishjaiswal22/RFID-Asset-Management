@@ -25,6 +25,10 @@ export interface AssetDetailPayload {
   assetTag: string
   serialNumber: string
   makeModel: string
+  assetType?: string
+  subAssetType?: string
+  assetState?: string
+  serviceRequest?: string
   assetDescription: string
   rfidEpc: string
   move: 'IN' | 'OUT'
