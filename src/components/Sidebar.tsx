@@ -64,9 +64,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-screen z-[100] flex flex-col justify-between bg-[#F6F5F1] dark:bg-[#121212] transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width] select-none border-r border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 ${
-        isCollapsed ? 'w-14' : 'w-56'
-      }`}
+      className={`fixed top-0 left-0 h-screen z-[100] flex flex-col justify-between bg-[#F6F5F1] dark:bg-[#121212] transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width] select-none border-r border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 ${isCollapsed ? 'w-14' : 'w-56'
+        }`}
     >
       <div>
         {/* Sidebar Header / Toggle */}
@@ -88,9 +87,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </TooltipRight>
 
           <div
-            className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-              isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[120px] opacity-100 ml-2.5 pr-1'
-            }`}
+            className={`flex items-center overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[120px] opacity-100 ml-2.5 pr-1'
+              }`}
           >
             <span className="text-xs font-semibold text-[#99958D] dark:text-[#737373] uppercase tracking-wider whitespace-nowrap">
               Menu
@@ -110,17 +108,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <button
                   onClick={() => setActiveMenu('central')}
-                  className={`w-full flex items-center px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${
-                    activeMenu === 'central'
-                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
-                      : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
-                  }`}
+                  className={`w-full flex items-center px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${activeMenu === 'central'
+                    ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
+                    : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                    }`}
                 >
                   <LayoutDashboard className="w-5 h-5 shrink-0 text-[#171717] dark:text-[#EDEDED]" />
                   <div
-                    className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                      isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-3'
-                    }`}
+                    className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-3'
+                      }`}
                   >
                     <span className="whitespace-nowrap font-medium text-sm">
                       Central Dashboard
@@ -141,17 +137,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <button
                   onClick={() => setActiveMenu('store')}
-                  className={`w-full flex items-center px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${
-                    activeMenu === 'store'
-                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
-                      : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
-                  }`}
+                  className={`w-full flex items-center px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${activeMenu === 'store'
+                    ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
+                    : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                    }`}
                 >
                   <Building2 className="w-5 h-5 shrink-0 text-[#171717] dark:text-[#EDEDED]" />
                   <div
-                    className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                      isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-3'
-                    }`}
+                    className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-3'
+                      }`}
                   >
                     <span className="whitespace-nowrap font-medium text-sm">
                       Stock Room Dashboard
@@ -166,56 +160,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {canMaster && (
             <div className="w-full">
               <TooltipRight
-                content="Master (User & Stock Room)"
+                content="Masters"
                 disabled={!isCollapsed}
                 className="w-full"
               >
                 <button
                   onClick={handleMasterClick}
-                  className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${
-                    isMasterActive
-                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
-                      : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
-                  }`}
+                  className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${isMasterActive
+                    ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
+                    : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                    }`}
                 >
                   <div className="flex items-center min-w-0">
                     <Layers className="w-5 h-5 shrink-0 text-[#171717] dark:text-[#EDEDED]" />
                     <div
-                      className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                        isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[120px] opacity-100 ml-3'
-                      }`}
+                      className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[120px] opacity-100 ml-3'
+                        }`}
                     >
                       <span className="whitespace-nowrap font-medium text-sm">
-                        Master
+                        Masters
                       </span>
                     </div>
                   </div>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 text-[#99958D] dark:text-[#737373] shrink-0 transition-[transform,opacity,max-width] duration-300 ease-in-out ${
-                      isMasterExpanded ? 'rotate-180' : ''
-                    } ${isCollapsed ? 'max-w-0 opacity-0 overflow-hidden ml-0' : 'max-w-4 opacity-100 ml-1'}`}
+                    className={`w-3.5 h-3.5 text-[#99958D] dark:text-[#737373] shrink-0 transition-[transform,opacity,max-width] duration-300 ease-in-out ${isMasterExpanded ? 'rotate-180' : ''
+                      } ${isCollapsed ? 'max-w-0 opacity-0 overflow-hidden ml-0' : 'max-w-4 opacity-100 ml-1'}`}
                   />
                 </button>
               </TooltipRight>
 
               {/* Smooth Accordion Submenu */}
               <div
-                className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                  !isCollapsed && isMasterExpanded
-                    ? 'grid-rows-[1fr] opacity-100 mt-1.5'
-                    : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'
-                }`}
+                className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${!isCollapsed && isMasterExpanded
+                  ? 'grid-rows-[1fr] opacity-100 mt-1.5'
+                  : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'
+                  }`}
               >
                 <div className="overflow-hidden">
                   <div className="ml-3 pl-3 border-l-2 border-[#EAE7DF] dark:border-[#2C2C2C] space-y-1 pb-0.5">
                     {canUserMaster && (
                       <button
                         onClick={() => setActiveMenu('user-master')}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer overflow-hidden ${
-                          activeMenu === 'user-master' || activeMenu === 'reader-master'
-                            ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white shadow-xs'
-                            : 'text-[#555555] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
-                        }`}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer overflow-hidden ${activeMenu === 'user-master' || activeMenu === 'reader-master'
+                          ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white shadow-xs'
+                          : 'text-[#555555] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                          }`}
                       >
                         <Users className="w-4 h-4 text-[#171717] dark:text-[#EDEDED] shrink-0" />
                         <span className="whitespace-nowrap truncate">User Master</span>
@@ -224,11 +213,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {canStockroomMaster && (
                       <button
                         onClick={() => setActiveMenu('store-master')}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer overflow-hidden ${
-                          activeMenu === 'store-master'
-                            ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white shadow-xs'
-                            : 'text-[#555555] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
-                        }`}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer overflow-hidden ${activeMenu === 'store-master'
+                          ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white shadow-xs'
+                          : 'text-[#555555] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                          }`}
                       >
                         <Building2 className="w-4 h-4 text-[#171717] dark:text-[#EDEDED] shrink-0" />
                         <span className="whitespace-nowrap truncate">Stock Room Master</span>
@@ -250,17 +238,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <button
                   onClick={() => setActiveMenu('report')}
-                  className={`w-full flex items-center px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${
-                    activeMenu === 'report'
-                      ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
-                      : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
-                  }`}
+                  className={`w-full flex items-center px-2.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer overflow-hidden ${activeMenu === 'report'
+                    ? 'bg-[#EDEAE2] dark:bg-[#252525] text-[#171717] dark:text-white'
+                    : 'text-[#666666] dark:text-[#A0A0A0] hover:bg-[#EFECE5] dark:hover:bg-[#1E1E1E] hover:text-[#171717] dark:hover:text-white'
+                    }`}
                 >
                   <FileBarChart className="w-5 h-5 shrink-0 text-[#171717] dark:text-[#EDEDED]" />
                   <div
-                    className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                      isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-3'
-                    }`}
+                    className={`overflow-hidden transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100 ml-3'
+                      }`}
                   >
                     <span className="whitespace-nowrap font-medium text-sm">
                       Report
