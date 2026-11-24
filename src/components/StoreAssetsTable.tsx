@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import {
   Search,
   Building2,
@@ -15,6 +15,7 @@ import {
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 import { exportToExcel } from '../utils/excelExport'
 import { TooltipTop, TooltipBottom } from './Tooltip'
+import { Toast, type ToastNotification } from './Toast'
 
 export type { StoreAssetRecord }
 export { DUMMY_STORE_RECORDS }
@@ -70,6 +71,17 @@ export default function StoreAssetsTable({
   const [internalSortOrder, setInternalSortOrder] = useState<SortOrder>('desc')
   const [internalRowsPerPage, setInternalRowsPerPage] = useState<number | 'all'>(10)
   const [internalCurrentPage, setInternalCurrentPage] = useState<number>(1)
+  const [notification, setNotification] = useState<ToastNotification | null>(null)
+
+  const showNotification = useCallback(
+    (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
+      setNotification({ type, message })
+      setTimeout(() => {
+        setNotification((prev) => (prev?.message === message ? null : prev))
+      }, 4500)
+    },
+    []
+  )
   const toolbarRef = useRef<HTMLDivElement>(null)
   const [toolbarHeight, setToolbarHeight] = useState<number>(44)
 
@@ -255,8 +267,12 @@ export default function StoreAssetsTable({
   }
 
   const handleExportExcel = () => {
-    const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
     const recordsToExport = isServerSide ? activeStores : filteredAndSortedRecords
+    if (!recordsToExport || recordsToExport.length === 0) {
+      showNotification('warning', 'No data to export')
+      return
+    }
+    const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
     const rows = recordsToExport.map((r) => [
       r.storeName,
       r.totalAssets,
@@ -269,12 +285,15 @@ export default function StoreAssetsTable({
       `stock_room_assets_${new Date().toISOString().slice(0, 10)}.xlsx`,
       'Stock Rooms'
     )
+    showNotification('success', `Exported ${rows.length} stock rooms to Excel.`)
   }
 
   return (
-    <div
-      className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] sm:overflow-visible overflow-hidden flex flex-col ${className}`}
-    >
+    <>
+      <Toast notification={notification} onClose={() => setNotification(null)} />
+      <div
+        className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] sm:overflow-visible overflow-hidden flex flex-col ${className}`}
+      >
       {/* Table Toolbar Header (Sticky below cards) */}
       <div
         ref={toolbarRef}
@@ -582,5 +601,6 @@ export default function StoreAssetsTable({
         </div>
       </div>
     </div>
+  </>
   )
 }

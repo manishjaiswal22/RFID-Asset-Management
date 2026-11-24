@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Clock,
   Building2,
@@ -23,7 +23,10 @@ import StoreFilter, { type StoreItem } from './StoreFilter'
 import TickerNumber from './TickerNumber'
 import { exportToExcel } from '../utils/excelExport'
 import { TooltipTop, TooltipBottom } from './Tooltip'
+import { Toast, type ToastNotification } from './Toast'
 import { dashboardService } from '../services/dashboardService'
+import { authService } from '../services/authService'
+import type { AuthUser } from '../types/auth'
 import type { ApiStockroom } from '../types/stockroom'
 import type {
   StockroomSummary,
@@ -42,15 +45,30 @@ type SortField =
 type SortOrder = 'asc' | 'desc'
 
 interface StoreDashboardProps {
+  currentUser?: AuthUser | null
   selectedStoreId?: string
   onStoreChange?: (storeId: string) => void
 }
 
 export const StoreDashboard: React.FC<StoreDashboardProps> = ({
+  currentUser,
   selectedStoreId = 'all',
   onStoreChange
 }) => {
-  const [selectedStore, setSelectedStore] = useState<string>(selectedStoreId)
+  const activeUser = currentUser ?? authService.getUser()
+  const isAdmin = (activeUser?.userType || '').toUpperCase() === 'ADMIN'
+
+  const getInitialStore = () => {
+    if (selectedStoreId && selectedStoreId !== 'all') {
+      return selectedStoreId
+    }
+    if (activeUser?.stockroomId) {
+      return String(activeUser.stockroomId)
+    }
+    return isAdmin ? 'all' : ''
+  }
+
+  const [selectedStore, setSelectedStore] = useState<string>(getInitialStore)
   const [apiStockrooms, setApiStockrooms] = useState<ApiStockroom[]>([])
   const [currentTime, setCurrentTime] = useState<Date>(new Date())
 
@@ -68,6 +86,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [movementRows, setMovementRows] = useState<StockroomMovementRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [notification, setNotification] = useState<ToastNotification | null>(null)
+
+  const showNotification = useCallback(
+    (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
+      setNotification({ type, message })
+      setTimeout(() => {
+        setNotification((prev) => (prev?.message === message ? null : prev))
+      }, 4500)
+    },
+    []
+  )
 
   // DataTable Filtering, Sorting & Pagination State
   const [searchQuery, setSearchQuery] = useState('')
@@ -122,6 +151,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       .then((data) => {
         if (mounted && data?.length) {
           setApiStockrooms(data)
+          if (!isAdmin && (!selectedStore || selectedStore === 'all')) {
+            const assigned = activeUser?.stockroomId
+              ? String(activeUser.stockroomId)
+              : String(data[0].stockroomId)
+            setSelectedStore(assigned)
+            onStoreChange?.(assigned)
+          }
         }
       })
       .catch((err) => {
@@ -131,17 +167,26 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     return () => {
       mounted = false
     }
-  }, [])
+  }, [isAdmin, activeUser?.stockroomId, selectedStore, onStoreChange])
 
   // Keep selectedStore in sync with prop changes (e.g. when navigated from Central Dashboard)
   useEffect(() => {
     if (selectedStoreId && selectedStoreId !== selectedStore) {
+      if (!isAdmin && selectedStoreId === 'all') {
+        const assigned = activeUser?.stockroomId
+          ? String(activeUser.stockroomId)
+          : (apiStockrooms[0] ? String(apiStockrooms[0].stockroomId) : '')
+        if (assigned && assigned !== selectedStore) {
+          setSelectedStore(assigned)
+        }
+        return
+      }
       setSelectedStore(selectedStoreId)
       setSummary(null)
       setSelectedAsset(null)
       setCurrentPage(1)
     }
-  }, [selectedStoreId, selectedStore])
+  }, [selectedStoreId, selectedStore, isAdmin, activeUser?.stockroomId, apiStockrooms])
 
   const handleStoreChange = (storeId: string) => {
     setSelectedStore(storeId)
@@ -215,22 +260,22 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   // Options for StoreFilter
   const stockRoomOptions: StoreItem[] = useMemo(() => {
-    return [
-      { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
-      ...apiStockrooms.map((s) => ({
-        id: String(s.stockroomId),
-        storeCode: `SR-${s.stockroomId}`,
-        name: s.stockroomName,
-        location: s.stockroomName,
-        keywords: s.stockroomName
-      }))
-    ]
-  }, [apiStockrooms])
+    const list = apiStockrooms.map((s) => ({
+      id: String(s.stockroomId),
+      storeCode: `SR-${s.stockroomId}`,
+      name: s.stockroomName,
+      location: s.stockroomName,
+      keywords: s.stockroomName
+    }))
+    return isAdmin
+      ? [{ id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' }, ...list]
+      : list
+  }, [apiStockrooms, isAdmin])
 
   // Current selected stock room name for display
   const currentStockroomName = useMemo(() => {
     if (selectedStore === 'all') {
-      return summary?.stockroomName || 'All Stock Rooms'
+      return summary?.stockroomName || (isAdmin ? 'All Stock Rooms' : 'Stock Room')
     }
     const found = stockRoomOptions.find(
       (s) =>
@@ -242,7 +287,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     if (found) return found.name
     if (summary?.stockroomName) return summary.stockroomName
     return isLoading ? 'Loading...' : 'Select Stock Room'
-  }, [selectedStore, stockRoomOptions, summary?.stockroomName, isLoading])
+  }, [selectedStore, stockRoomOptions, summary?.stockroomName, isLoading, isAdmin])
 
   const kpiCards = [
     {
@@ -430,6 +475,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
+    if (!movementRows || movementRows.length === 0) {
+      showNotification('warning', 'No data to export')
+      return
+    }
     const headers = [
       'Date-Time',
       'Asset Tag',
@@ -456,6 +505,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       `stockroom_movements_${new Date().toISOString().slice(0, 10)}.xlsx`,
       'Asset Movements'
     )
+    showNotification('success', `Exported ${rows.length} asset movements to Excel.`)
   }
 
   const formatDateTime = (date: Date): string => {
@@ -514,6 +564,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   return (
     <div className="w-full flex-1 flex flex-col space-y-2.5 sm:space-y-3 select-none">
+      {/* Toast Notification */}
+      <Toast notification={notification} onClose={() => setNotification(null)} />
+
       {/* Top Header Section & 4 KPI Cards: Sticky below navbar */}
       <div
         ref={cardsRef}
@@ -542,6 +595,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
             {/* Stock Room Selection */}
             <StoreFilter
+              currentUser={activeUser}
               selectedStore={selectedStore}
               onStoreChange={handleStoreChange}
               stores={stockRoomOptions}

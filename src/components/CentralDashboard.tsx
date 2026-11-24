@@ -14,6 +14,8 @@ import StoreAssetsTable, {
   type SortOrder
 } from './StoreAssetsTable'
 import { dashboardService } from '../services/dashboardService'
+import { authService } from '../services/authService'
+import type { AuthUser } from '../types/auth'
 import type { ApiStockroom } from '../types/stockroom'
 import type {
   CentralDashboardSummary,
@@ -21,16 +23,21 @@ import type {
 } from '../types/centralDashboard'
 
 interface CentralDashboardProps {
+  currentUser?: AuthUser | null
   onNavigateToStore?: (storeId: string) => void
   initialSearchQuery?: string
   onSearchQueryChange?: (query: string) => void
 }
 
 export const CentralDashboard: React.FC<CentralDashboardProps> = ({
+  currentUser,
   onNavigateToStore,
   initialSearchQuery = '',
   onSearchQueryChange
 }) => {
+  const activeUser = currentUser ?? authService.getUser()
+  const isAdmin = (activeUser?.userType || '').toUpperCase() === 'ADMIN'
+
   const [summary, setSummary] = useState<CentralDashboardSummary>({
     totalStockRooms: 0,
     totalTaggedAssets: 0,
@@ -194,17 +201,17 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
 
   // Memoize stock room options for dropdown
   const stockRoomOptions: StoreItem[] = useMemo(() => {
-    return [
-      { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
-      ...apiStockrooms.map((s) => ({
-        id: String(s.stockroomId),
-        storeCode: `SR-${s.stockroomId}`,
-        name: s.stockroomName,
-        location: s.stockroomName,
-        keywords: s.stockroomName
-      }))
-    ]
-  }, [apiStockrooms])
+    const list = apiStockrooms.map((s) => ({
+      id: String(s.stockroomId),
+      storeCode: `SR-${s.stockroomId}`,
+      name: s.stockroomName,
+      location: s.stockroomName,
+      keywords: s.stockroomName
+    }))
+    return isAdmin
+      ? [{ id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' }, ...list]
+      : list
+  }, [apiStockrooms, isAdmin])
 
   // Clock timer
   useEffect(() => {
@@ -339,6 +346,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
 
             {/* Stock Room Selection */}
             <StoreFilter
+              currentUser={activeUser}
               selectedStore={selectedStore}
               onStoreChange={handleStoreChange}
               stores={stockRoomOptions}

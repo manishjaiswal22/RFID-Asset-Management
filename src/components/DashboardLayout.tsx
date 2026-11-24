@@ -36,7 +36,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, curr
     if (currentUser?.stockroomId) {
       return currentUser.stockroomId.toString()
     }
-    return 'all'
+    const isAdmin = (currentUser?.userType || '').toUpperCase() === 'ADMIN'
+    return isAdmin ? 'all' : ''
   })
 
   const handleNavigateToStore = (storeId: string) => {
@@ -86,6 +87,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, curr
           <div className="w-full flex-1 rounded-2xl bg-white dark:bg-[#1C1C1C] p-3 sm:p-4 flex flex-col transition-colors border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs">
             {activeMenu === 'central' && (
               <CentralDashboard
+                currentUser={currentUser}
                 onNavigateToStore={handleNavigateToStore}
                 initialSearchQuery={centralSearchQuery}
                 onSearchQueryChange={setCentralSearchQuery}
@@ -93,6 +95,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, curr
             )}
             {activeMenu === 'store' && (
               <StoreDashboard
+                currentUser={currentUser}
                 selectedStoreId={stockRoomDashboardStoreId}
                 onStoreChange={setStockRoomDashboardStoreId}
               />

@@ -64,13 +64,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-screen z-[80] flex flex-col justify-between bg-[#F6F5F1] dark:bg-[#121212] transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width] select-none border-r border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 ${
+      className={`fixed top-0 left-0 h-screen z-[100] flex flex-col justify-between bg-[#F6F5F1] dark:bg-[#121212] transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width] select-none border-r border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 ${
         isCollapsed ? 'w-14' : 'w-56'
       }`}
     >
       <div>
         {/* Sidebar Header / Toggle */}
-        <div className="h-14 flex items-center px-2.5 overflow-hidden border-b border-[#EAE7DF]/30 dark:border-[#2C2C2C]/30">
+        <div className="h-14 flex items-center px-2.5 border-b border-[#EAE7DF]/30 dark:border-[#2C2C2C]/30">
           <TooltipRight
             content={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >

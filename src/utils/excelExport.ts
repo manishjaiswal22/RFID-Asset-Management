@@ -14,6 +14,9 @@ export function exportToExcel(
   filename: string,
   sheetName = 'Data'
 ): void {
+  if (!rows || rows.length === 0) {
+    return
+  }
   const worksheetData = [headers, ...rows]
   const ws = XLSX.utils.aoa_to_sheet(worksheetData)
 

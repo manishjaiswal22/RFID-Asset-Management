@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Building2, Search, ChevronDown, Check, X, Loader2 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS } from '../data/storesData'
 import { dashboardService } from '../services/dashboardService'
+import { authService } from '../services/authService'
+import type { AuthUser } from '../types/auth'
 import { TooltipBottom } from './Tooltip'
 
 export interface StoreItem {
@@ -24,6 +26,7 @@ export const DUMMY_STORES: StoreItem[] = [
 ]
 
 interface StoreFilterProps {
+  currentUser?: AuthUser | null
   selectedStore?: string
   defaultStore?: string
   onStoreChange?: (storeId: string) => void
@@ -36,13 +39,18 @@ interface StoreFilterProps {
  * Standalone, reusable dropdown component for selecting a stock room with tokenized search.
  */
 export default function StoreFilter({
+  currentUser,
   selectedStore: controlledStore,
-  defaultStore = 'all',
+  defaultStore,
   onStoreChange,
   stores: externalStores,
   className = ''
 }: StoreFilterProps) {
-  const [internalStore, setInternalStore] = useState(defaultStore)
+  const activeUser = currentUser ?? authService.getUser()
+  const isAdmin = (activeUser?.userType || '').toUpperCase() === 'ADMIN'
+
+  const computedDefaultStore = defaultStore !== undefined ? defaultStore : (isAdmin ? 'all' : '')
+  const [internalStore, setInternalStore] = useState(computedDefaultStore)
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [apiStores, setApiStores] = useState<StoreItem[]>([])
@@ -62,7 +70,7 @@ export default function StoreFilter({
       .then((data) => {
         if (mounted && data?.length) {
           const mapped: StoreItem[] = [
-            { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' },
+            ...(isAdmin ? [{ id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' }] : []),
             ...data.map((item) => ({
               id: String(item.stockroomId),
               storeCode: `SR-${item.stockroomId}`,
@@ -84,14 +92,22 @@ export default function StoreFilter({
     return () => {
       mounted = false
     }
-  }, [externalStores])
+  }, [externalStores, isAdmin])
 
-  const stores =
+  const rawStores =
     externalStores && externalStores !== DUMMY_STORES && externalStores.length > 0
       ? externalStores
       : apiStores.length > 0
         ? apiStores
         : DUMMY_STORES
+
+  // For non-admin (e.g. user type), strictly filter out "All Stock Rooms" / id: 'all'
+  const stores = useMemo(() => {
+    if (isAdmin) {
+      return rawStores
+    }
+    return rawStores.filter((s) => s.id !== 'all' && s.name.toLowerCase() !== 'all stock rooms')
+  }, [rawStores, isAdmin])
 
   const isMatch = (store: StoreItem, targetId?: string) => {
     if (!targetId) return false
@@ -105,9 +121,9 @@ export default function StoreFilter({
 
   const currentStoreId = controlledStore !== undefined ? controlledStore : internalStore
   const currentStore = stores.find((s) => isMatch(s, currentStoreId)) || stores[0] || {
-    id: 'all',
+    id: isAdmin ? 'all' : '',
     storeCode: '',
-    name: 'All Stock Rooms',
+    name: isAdmin ? 'All Stock Rooms' : 'Stock Room',
     location: ''
   }
 
@@ -123,6 +139,7 @@ export default function StoreFilter({
   }, [])
 
   const handleSelect = (storeId: string) => {
+    if (!isAdmin && storeId === 'all') return
     if (controlledStore === undefined) {
       setInternalStore(storeId)
     }
@@ -135,7 +152,7 @@ export default function StoreFilter({
 
   // Tokenized, normalized, and alias-aware search filter
   const filteredStores = stores.filter((s) => {
-    if (s.id === 'all') return true
+    if (s.id === 'all') return isAdmin
     if (!searchQuery.trim()) return true
     const rawQuery = searchQuery.trim().toLowerCase()
     const cleanQuery = rawQuery.replace(/[^a-z0-9]/g, '')
@@ -183,7 +200,7 @@ export default function StoreFilter({
           <span className="truncate text-xs">{currentStore.name}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {currentStore.id !== 'all' && (
+          {isAdmin && currentStore.id !== 'all' && (
             <TooltipBottom content="Reset to All Stock Rooms">
               <span
                 onClick={(e) => {

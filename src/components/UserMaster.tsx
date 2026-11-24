@@ -6,8 +6,6 @@ import {
   Phone,
   Eye,
   EyeOff,
-  CheckCircle2,
-  XCircle,
   Plus,
   Search,
   FileSpreadsheet,
@@ -31,6 +29,7 @@ import { userService } from '../services/userService'
 import { authService } from '../services/authService'
 import { dashboardService } from '../services/dashboardService'
 import { TooltipTop, TooltipBottom, TooltipLeft } from './Tooltip'
+import { Toast, type ToastNotification } from './Toast'
 import type {
   ApiUserRecord,
   UserSummary,
@@ -96,10 +95,7 @@ export const UserMaster: React.FC = () => {
     contactNumber?: string
     stockroomId?: string
   }>({})
-  const [notification, setNotification] = useState<{
-    type: 'success' | 'error'
-    message: string
-  } | null>(null)
+  const [notification, setNotification] = useState<ToastNotification | null>(null)
 
   // DataTable filtering, sorting & pagination
   const [searchQuery, setSearchQuery] = useState('')
@@ -109,7 +105,7 @@ export const UserMaster: React.FC = () => {
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
 
-  const showNotification = useCallback((type: 'success' | 'error', message: string) => {
+  const showNotification = useCallback((type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     setNotification({ type, message })
     setTimeout(() => {
       setNotification((prev) => (prev?.message === message ? null : prev))
@@ -492,6 +488,10 @@ export const UserMaster: React.FC = () => {
 
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
+    if (!records || records.length === 0) {
+      showNotification('warning', 'No data to export')
+      return
+    }
     const headers = ['User Name', 'User Type', 'Stock Room', 'Email', 'Contact Number', 'Status']
     const rows = records.map((r) => [
       r.userName,
@@ -513,24 +513,7 @@ export const UserMaster: React.FC = () => {
   return (
     <div className="w-full flex-1 flex flex-col space-y-2.5 select-none">
       {/* Toast Notification */}
-      {notification && (
-        <div className="fixed top-20 right-6 z-[9999] animate-in fade-in slide-in-from-top-3 duration-200 shadow-2xl">
-          <div
-            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold select-none border backdrop-blur-md ${
-              notification.type === 'success'
-                ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B] dark:text-[#A7F3D0] dark:border-[#059669]'
-                : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#FECACA] dark:border-[#DC2626]'
-            }`}
-          >
-            {notification.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-            ) : (
-              <XCircle className="w-4 h-4 shrink-0" />
-            )}
-            <span>{notification.message}</span>
-          </div>
-        </div>
-      )}
+      <Toast notification={notification} onClose={() => setNotification(null)} />
 
       {/* Page Header & Metric Pills */}
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">

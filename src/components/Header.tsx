@@ -35,7 +35,7 @@ export const Header: React.FC<HeaderProps> = ({ onLogout, userName, currentUser 
   }, [])
 
   return (
-    <header className="sticky top-0 z-[100] h-12 sm:h-14 pl-1.5 sm:pl-2.5 pr-2.5 sm:pr-4 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1] dark:bg-[#121212] border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
+    <header className="sticky top-0 z-[50] h-12 sm:h-14 pl-1.5 sm:pl-2.5 pr-2.5 sm:pr-4 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1] dark:bg-[#121212] border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <div className="flex items-center shrink-0">
           <img
