@@ -202,11 +202,12 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
 
   // Listen for real-time stockroom updates over WebSockets / SignalR
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined
+    let unsubscribeStockroom: (() => void) | undefined
+    let unsubscribeRefreshed: (() => void) | undefined
 
     signalrService.connect().then(() => {
-      unsubscribe = signalrService.onStockroomUpdated((data) => {
-        // 1. Update the 4 KPI summary cards (TickerNumber animates smoothly)
+      // 1. Live stockroom update (IN/OUT scan or count change)
+      unsubscribeStockroom = signalrService.onStockroomUpdated((data) => {
         setSummary({
           totalStockRooms: data.globalSummary.totalStockRooms,
           totalTaggedAssets: data.globalSummary.totalTaggedAssets,
@@ -214,7 +215,6 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
           availableAssets: data.globalSummary.availableAssets
         })
 
-        // 2. Prepend updated stockroom row to top of table (Row 1)
         setTableRows((prevRows) => {
           const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
           const remaining = prevRows.filter((row) => row.id !== String(data.stockroomId))
@@ -230,14 +230,26 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
             totalIn: data.availableAssets
           }
 
-          // Prepend and slice to maintain exact page size
           return [updatedRow, ...remaining].slice(0, numericPageSize)
         })
+      })
+
+      // 2. Live rollback / deletion detected (Undo)
+      unsubscribeRefreshed = signalrService.onDashboardRefreshed((data) => {
+        if (data?.globalSummary) {
+          setSummary({
+            totalStockRooms: data.globalSummary.totalStockRooms,
+            totalTaggedAssets: data.globalSummary.totalTaggedAssets,
+            assetIssuance: data.globalSummary.assetIssuance,
+            availableAssets: data.globalSummary.availableAssets
+          })
+        }
       })
     })
 
     return () => {
-      if (unsubscribe) unsubscribe()
+      if (unsubscribeStockroom) unsubscribeStockroom()
+      if (unsubscribeRefreshed) unsubscribeRefreshed()
     }
   }, [rowsPerPage])
 

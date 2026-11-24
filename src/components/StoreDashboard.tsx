@@ -88,6 +88,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [notification, setNotification] = useState<ToastNotification | null>(null)
+  const [realtimeRefreshTick, setRealtimeRefreshTick] = useState<number>(0)
 
   const showNotification = useCallback(
     (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
@@ -256,19 +257,21 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     rowsPerPage,
     sortField,
     sortOrder,
-    debouncedSearch
+    debouncedSearch,
+    realtimeRefreshTick
   ])
 
   // Listen for real-time asset scans over WebSockets / SignalR
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined
+    let unsubscribeScanned: (() => void) | undefined
+    let unsubscribeRefreshed: (() => void) | undefined
 
     signalrService.connect().then(() => {
       if (resolvedStockroomId) {
         signalrService.joinStockroom(resolvedStockroomId)
       }
 
-      unsubscribe = signalrService.onAssetScanned((data) => {
+      unsubscribeScanned = signalrService.onAssetScanned((data) => {
         // If a specific stockroom is selected and does not match, ignore
         if (resolvedStockroomId && data.stockroomId !== resolvedStockroomId) {
           return
@@ -327,10 +330,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           return [newRow, ...remaining].slice(0, numericPageSize)
         })
       })
+
+      // 4. On Undo / Rollback event: refresh data automatically
+      unsubscribeRefreshed = signalrService.onDashboardRefreshed(() => {
+        setRealtimeRefreshTick((prev) => prev + 1)
+      })
     })
 
     return () => {
-      if (unsubscribe) unsubscribe()
+      if (unsubscribeScanned) unsubscribeScanned()
+      if (unsubscribeRefreshed) unsubscribeRefreshed()
       if (resolvedStockroomId) {
         signalrService.leaveStockroom(resolvedStockroomId)
       }

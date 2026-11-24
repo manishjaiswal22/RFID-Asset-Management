@@ -158,6 +158,20 @@ class SignalRService {
     }
   }
 
+  public onDashboardRefreshed(callback: (data: { globalSummary: GlobalSummaryPayload }) => void): () => void {
+    if (!this.connection) {
+      this.connect().then((conn) => {
+        conn?.on('DashboardRefreshed', callback)
+      })
+    } else {
+      this.connection.on('DashboardRefreshed', callback)
+    }
+
+    return () => {
+      this.connection?.off('DashboardRefreshed', callback)
+    }
+  }
+
   public async joinStockroom(stockroomId: number): Promise<void> {
     if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
       try {
