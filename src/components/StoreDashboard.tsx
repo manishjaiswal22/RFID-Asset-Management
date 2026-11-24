@@ -295,16 +295,23 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         })
 
         // 2. Update KPI Summary counters
-        setSummary((prev) =>
-          prev
-            ? {
-                ...prev,
-                totalTaggedAssets: data.stockroomSummary.totalTaggedAssets,
-                assetIssuance: data.stockroomSummary.assetIssuance,
-                availableAssets: data.stockroomSummary.availableAssets
-              }
-            : null
-        )
+        setSummary((prev) => {
+          if (!prev) return null
+          if (!resolvedStockroomId && data.globalSummary) {
+            return {
+              ...prev,
+              totalTaggedAssets: data.globalSummary.totalTaggedAssets,
+              assetIssuance: data.globalSummary.assetIssuance,
+              availableAssets: data.globalSummary.availableAssets
+            }
+          }
+          return {
+            ...prev,
+            totalTaggedAssets: data.stockroomSummary.totalTaggedAssets,
+            assetIssuance: data.stockroomSummary.assetIssuance,
+            availableAssets: data.stockroomSummary.availableAssets
+          }
+        })
 
         // 3. Prepend to Movement Rows at Row 1 and slice to preserve pagination length
         setMovementRows((prevRows) => {

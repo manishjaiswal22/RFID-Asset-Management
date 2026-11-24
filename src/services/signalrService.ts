@@ -45,6 +45,7 @@ export interface AssetScannedPayload {
   stockroomName: string
   asset: AssetDetailPayload
   stockroomSummary: StockroomSummaryPayload
+  globalSummary?: GlobalSummaryPayload
 }
 
 class SignalRService {
