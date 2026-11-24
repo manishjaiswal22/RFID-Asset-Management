@@ -75,9 +75,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   const [summary, setSummary] = useState<StockroomSummary | null>(null)
   const [latestRead, setLatestRead] = useState<LatestAssetRead | null>(null)
-  const [selectedAsset, setSelectedAsset] = useState<
-    StockroomMovementRow | LatestAssetRead | null
-  >(null)
   const [pagination, setPagination] = useState<StockroomPagination>({
     page: 1,
     pageSize: 10,
@@ -185,7 +182,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       }
       setSelectedStore(selectedStoreId)
       setSummary(null)
-      setSelectedAsset(null)
       setCurrentPage(1)
     }
   }, [selectedStoreId, selectedStore, isAdmin, activeUser?.stockroomId, apiStockrooms])
@@ -193,7 +189,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const handleStoreChange = (storeId: string) => {
     setSelectedStore(storeId)
     setSummary(null)
-    setSelectedAsset(null)
     setCurrentPage(1)
     onStoreChange?.(storeId)
   }
@@ -237,7 +232,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         if (!mounted) return
         setSummary(res.summary)
         setLatestRead(res.latestAssetRead)
-        setSelectedAsset((prev) => (prev ? prev : res.latestAssetRead))
         setPagination(res.pagination)
         setMovementRows(res.rows)
       })
@@ -449,41 +443,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     }
   ]
 
-  // Currently inspected asset for Latest Asset Read Card
-  const activeAsset = useMemo(() => {
-    if (selectedAsset) {
-      const stockroomName =
-        selectedAsset.stockroomName ||
-        (selectedAsset.assetId === latestRead?.assetId
-          ? latestRead?.stockroomName
-          : undefined) ||
-        latestRead?.stockroomName ||
-        summary?.stockroomName ||
-        (selectedStore !== 'all' ? currentStockroomName : undefined) ||
-        currentStockroomName
-
-      const serviceRequest =
-        selectedAsset.serviceRequest ||
-        (selectedAsset.assetId === latestRead?.assetId
-          ? latestRead?.serviceRequest
-          : undefined) ||
-        latestRead?.serviceRequest ||
-        '-'
-
-      return {
-        ...selectedAsset,
-        stockroomName,
-        serviceRequest
-      }
-    }
-    return latestRead
-  }, [
-    selectedAsset,
-    latestRead,
-    summary?.stockroomName,
-    currentStockroomName,
-    selectedStore
-  ])
+  // Currently inspected asset for Latest Asset Read Card (always the latest RFID read)
+  const activeAsset = latestRead
 
   const activeStockroomName =
     activeAsset?.stockroomName || summary?.stockroomName || currentStockroomName
@@ -778,26 +739,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
               <h3 className="text-xs sm:text-sm font-bold text-[#171717] dark:text-[#EDEDED]">
-                {selectedAsset && latestRead && selectedAsset.assetId !== latestRead.assetId
-                  ? 'Selected Asset Details'
-                  : 'Latest Asset Read'}
+                Latest Asset Read
               </h3>
-              {selectedAsset && latestRead && selectedAsset.assetId !== latestRead.assetId && (
-                <span className="px-2 py-0.5 rounded-full bg-[#00a8e7]/10 text-[#00a8e7] text-[10px] font-semibold">
-                  From Table
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-2">
-              {selectedAsset && latestRead && selectedAsset.assetId !== latestRead.assetId && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedAsset(latestRead)}
-                  className="text-[10.5px] font-semibold text-[#00a8e7] hover:underline cursor-pointer"
-                >
-                  Show Latest Read
-                </button>
-              )}
               <span className="text-[10.5px] text-[#99958D] dark:text-[#888888] font-medium">
                 Read on EPC detection
               </span>
@@ -1266,8 +1211,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   </tr>
                 ) : (
                   movementRows.map((item, idx) => {
-                    const isSelected =
-                      activeAsset && activeAsset.assetId === item.assetId
                     const { dateStr, timeStr } = formatMovementDateTime(
                       item.movementDateTime
                     )
@@ -1275,11 +1218,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     return (
                       <tr
                         key={item.assetId}
-                        onClick={() => setSelectedAsset(item)}
-                        className={`cursor-pointer transition-colors border-b border-[#EAE7DF]/40 dark:border-[#2C2C2C]/40 ${
-                          isSelected
-                            ? 'bg-[#00a8e7]/10 dark:bg-[#00a8e7]/15 ring-1 ring-inset ring-[#00a8e7]/30'
-                            : idx % 2 === 0
+                        className={`transition-colors border-b border-[#EAE7DF]/40 dark:border-[#2C2C2C]/40 ${
+                          idx % 2 === 0
                             ? 'bg-white dark:bg-[#1E1E1E] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
                             : 'bg-[#F9F8F5] dark:bg-[#181818] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
                         }`}
