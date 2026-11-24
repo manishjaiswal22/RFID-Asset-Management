@@ -22,6 +22,7 @@ import {
 import StoreFilter, { type StoreItem } from './StoreFilter'
 import TickerNumber from './TickerNumber'
 import { exportToExcel } from '../utils/excelExport'
+import { TooltipTop, TooltipBottom } from './Tooltip'
 import { dashboardService } from '../services/dashboardService'
 import type { ApiStockroom } from '../types/stockroom'
 import type {
@@ -733,18 +734,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       </p>
                     </div>
                     {activeAsset.assetTag && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(activeAsset.assetTag, 'tag')}
-                        title="Copy Asset Tag"
-                        className="p-1 text-[#94A3B8] hover:text-[#1D63ED] rounded transition-colors cursor-pointer shrink-0"
-                      >
-                        {copiedKey === 'tag' ? (
-                          <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                      <TooltipTop content="Copy Asset Tag">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(activeAsset.assetTag, 'tag')}
+                          className="p-1 text-[#94A3B8] hover:text-[#1D63ED] rounded transition-colors cursor-pointer shrink-0"
+                          aria-label="Copy Asset Tag"
+                        >
+                          {copiedKey === 'tag' ? (
+                            <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </TooltipTop>
                     )}
                   </div>
 
@@ -762,18 +765,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       </p>
                     </div>
                     {activeAsset.serialNumber && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(activeAsset.serialNumber, 'serial')}
-                        title="Copy Serial Number"
-                        className="p-1 text-[#94A3B8] hover:text-[#1D63ED] rounded transition-colors cursor-pointer shrink-0"
-                      >
-                        {copiedKey === 'serial' ? (
-                          <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                      <TooltipTop content="Copy Serial Number">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(activeAsset.serialNumber, 'serial')}
+                          className="p-1 text-[#94A3B8] hover:text-[#1D63ED] rounded transition-colors cursor-pointer shrink-0"
+                          aria-label="Copy Serial Number"
+                        >
+                          {copiedKey === 'serial' ? (
+                            <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </TooltipTop>
                     )}
                   </div>
 
@@ -794,18 +799,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       </p>
                     </div>
                     {activeAsset.rfidEpc && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(activeAsset.rfidEpc, 'epc')}
-                        title="Copy RFID EPC"
-                        className="p-1 text-[#94A3B8] hover:text-[#00a8e7] rounded transition-colors cursor-pointer shrink-0"
-                      >
-                        {copiedKey === 'epc' ? (
-                          <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                      <TooltipTop content="Copy RFID EPC">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(activeAsset.rfidEpc, 'epc')}
+                          className="p-1 text-[#94A3B8] hover:text-[#00a8e7] rounded transition-colors cursor-pointer shrink-0"
+                          aria-label="Copy RFID EPC"
+                        >
+                          {copiedKey === 'epc' ? (
+                            <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </TooltipTop>
                     )}
                   </div>
 
@@ -823,18 +830,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       </p>
                     </div>
                     {activeAsset.assetDescription && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(activeAsset.assetDescription, 'desc')}
-                        title="Copy Asset Description"
-                        className="p-1 text-[#94A3B8] hover:text-[#1D63ED] rounded transition-colors cursor-pointer shrink-0"
-                      >
-                        {copiedKey === 'desc' ? (
-                          <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                      <TooltipTop content="Copy Asset Description">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(activeAsset.assetDescription, 'desc')}
+                          className="p-1 text-[#94A3B8] hover:text-[#1D63ED] rounded transition-colors cursor-pointer shrink-0"
+                          aria-label="Copy Asset Description"
+                        >
+                          {copiedKey === 'desc' ? (
+                            <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </TooltipTop>
                     )}
                   </div>
                 </div>
@@ -885,18 +894,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           </span>
                         </div>
                         {activeServiceRequest && activeServiceRequest !== '-' && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(activeServiceRequest, 'ritm')}
-                            title="Copy Service Request"
-                            className="p-1 text-[#94A3B8] hover:text-[#00a8e7] rounded transition-colors cursor-pointer shrink-0"
-                          >
-                            {copiedKey === 'ritm' ? (
-                              <Check className="w-3 h-3 text-[#10B981]" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
+                          <TooltipTop content="Copy Service Request">
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(activeServiceRequest, 'ritm')}
+                              className="p-1 text-[#94A3B8] hover:text-[#00a8e7] rounded transition-colors cursor-pointer shrink-0"
+                              aria-label="Copy Service Request"
+                            >
+                              {copiedKey === 'ritm' ? (
+                                <Check className="w-3 h-3 text-[#10B981]" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          </TooltipTop>
                         )}
                       </div>
                     </div>
@@ -981,7 +992,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     setRowsPerPage(val === 'all' ? 'all' : Number(val))
                     setCurrentPage(1)
                   }}
-                  className="h-7 px-1.5 py-0 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
+                  className="h-8 px-2 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
                 >
                   <option value={5}>5</option>
                   <option value={10}>10</option>
@@ -990,15 +1001,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </select>
               </div>
 
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-                title="Export filtered movements to Excel (.xlsx)"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Export to Excel</span>
-              </button>
+              <TooltipBottom content="Export filtered movements to Excel (.xlsx)">
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Export to Excel</span>
+                </button>
+              </TooltipBottom>
             </div>
           </div>
 
@@ -1103,7 +1115,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  movementRows.map((item) => {
+                  movementRows.map((item, idx) => {
                     const isSelected =
                       activeAsset && activeAsset.assetId === item.assetId
                     const { dateStr, timeStr } = formatMovementDateTime(
@@ -1114,10 +1126,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <tr
                         key={item.assetId}
                         onClick={() => setSelectedAsset(item)}
-                        className={`cursor-pointer transition-colors ${
+                        className={`cursor-pointer transition-colors border-b border-[#EAE7DF]/40 dark:border-[#2C2C2C]/40 ${
                           isSelected
                             ? 'bg-[#00a8e7]/10 dark:bg-[#00a8e7]/15 ring-1 ring-inset ring-[#00a8e7]/30'
-                            : 'hover:bg-[#FAF9F6] dark:hover:bg-[#252525]'
+                            : idx % 2 === 0
+                            ? 'bg-white dark:bg-[#1E1E1E] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
+                            : 'bg-[#F9F8F5] dark:bg-[#181818] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
                         }`}
                       >
                         {/* Date-Time */}
@@ -1246,15 +1260,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
             <div className="flex items-center gap-1">
               {/* Previous Button */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1 || isAll}
-                className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                title="Previous page"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
+              <TooltipTop content="Previous page" disabled={currentPage === 1 || isAll}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || isAll}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTop>
 
               {/* Numbered Page Buttons: 1, 2, 3... */}
               {getPageNumbers().map((page, idx) => {
@@ -1290,17 +1305,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               })}
 
               {/* Next Button */}
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={currentPage >= totalPages || isAll}
-                className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                title="Next page"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              <TooltipTop content="Next page" disabled={currentPage >= totalPages || isAll}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={currentPage >= totalPages || isAll}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTop>
             </div>
           </div>
         </div>

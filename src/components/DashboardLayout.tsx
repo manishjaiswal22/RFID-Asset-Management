@@ -15,11 +15,29 @@ interface DashboardLayoutProps {
   currentUser?: AuthUser | null
 }
 
+const getInitialMenu = (user?: AuthUser | null): NavMenu => {
+  if (!user || !user.allowedSections || user.allowedSections.length === 0) {
+    return 'central'
+  }
+  const allowed = user.allowedSections
+  if (allowed.includes('Central Dashboard')) return 'central'
+  if (allowed.includes('Stock Room Dashboard')) return 'store'
+  if (allowed.includes('User Master')) return 'user-master'
+  if (allowed.includes('Stock Room Master')) return 'store-master'
+  if (allowed.includes('Report')) return 'report'
+  return 'store'
+}
+
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, currentUser }) => {
-  const [activeMenu, setActiveMenu] = useState<NavMenu>('central')
+  const [activeMenu, setActiveMenu] = useState<NavMenu>(() => getInitialMenu(currentUser))
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [centralSearchQuery, setCentralSearchQuery] = useState<string>('')
-  const [stockRoomDashboardStoreId, setStockRoomDashboardStoreId] = useState<string>('all')
+  const [stockRoomDashboardStoreId, setStockRoomDashboardStoreId] = useState<string>(() => {
+    if (currentUser?.stockroomId) {
+      return currentUser.stockroomId.toString()
+    }
+    return 'all'
+  })
 
   const handleNavigateToStore = (storeId: string) => {
     setStockRoomDashboardStoreId(storeId)
@@ -49,10 +67,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, curr
         setActiveMenu={setActiveMenu}
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
+        currentUser={currentUser}
       />
 
       <div
-        className={`flex-1 flex flex-col justify-between min-h-screen transition-all duration-300 ease-in-out ${
+        className={`flex-1 flex flex-col justify-between min-h-screen transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[padding-left] ${
           isCollapsed ? 'pl-14' : 'pl-56'
         }`}
       >
@@ -60,6 +79,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, curr
           pageTitle={getPageTitle(activeMenu)}
           onLogout={onLogout}
           userName={currentUser?.userName}
+          currentUser={currentUser}
         />
 
         <main className="flex-1 px-1.5 sm:px-2.5 pb-2 sm:pb-3 pt-1.5 sm:pt-2 flex flex-col">

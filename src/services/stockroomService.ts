@@ -11,20 +11,26 @@ const getApiBaseUrl = (): string => {
   const envUrl = (
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
-    'http://172.20.204.134:5187'
+    '/api'
   ).trim()
 
   if (envUrl.endsWith('/api')) {
     return envUrl
   }
+  if (!envUrl || envUrl === '/') {
+    return '/api'
+  }
   return `${envUrl.replace(/\/+$/, '')}/api`
 }
 
 const checkResponseAuth = (response: Response) => {
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     authService.logout()
     window.dispatchEvent(new CustomEvent('auth:unauthorized'))
     throw new Error('Session expired. Please log in again.')
+  }
+  if (response.status === 403) {
+    throw new Error('Access denied: You do not have permission for this stock room operation.')
   }
 }
 
@@ -149,25 +155,32 @@ export const stockroomService = {
    */
   async toggleStatus(id: number | string): Promise<StockroomMutationResponse> {
     const url = `${getApiBaseUrl()}/stockrooms/${id}/toggle-status`
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: getAuthHeaders()
-    })
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: getAuthHeaders()
+      })
 
-    checkResponseAuth(response)
+      checkResponseAuth(response)
 
-    const data = await response.json().catch(() => null)
+      const data = await response.json().catch(() => null)
 
-    if (!response.ok) {
-      throw new Error(
-        data?.message || `Failed to toggle stock room status (Status ${response.status})`
-      )
+      if (!response.ok) {
+        throw new Error(
+          data?.message || `Failed to toggle stock room status (Status ${response.status})`
+        )
+      }
+
+      return (data || {
+        success: true,
+        message: 'Stock room status updated successfully.'
+      }) as StockroomMutationResponse
+    } catch (err: any) {
+      if (err.name === 'TypeError' && err.message?.includes('fetch')) {
+        throw new Error('Unable to connect to backend server. Please verify backend server at 172.20.204.134:5187 is reachable.')
+      }
+      throw err
     }
-
-    return (data || {
-      success: true,
-      message: 'Stock room status updated successfully.'
-    }) as StockroomMutationResponse
   },
 
   /**

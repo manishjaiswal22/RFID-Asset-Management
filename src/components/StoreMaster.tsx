@@ -12,15 +12,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit2,
-  Trash2,
   Check,
   Power,
   X,
-  Loader2,
-  AlertTriangle
+  Loader2
 } from 'lucide-react'
 import { exportToExcel } from '../utils/excelExport'
 import { stockroomService } from '../services/stockroomService'
+import { TooltipTop, TooltipBottom, TooltipLeft } from './Tooltip'
 import type {
   ApiStockroomMasterRecord,
   StockroomMasterSummary,
@@ -56,9 +55,6 @@ export const StoreMaster: React.FC = () => {
   const [editingRecord, setEditingRecord] = useState<ApiStockroomMasterRecord | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Delete confirmation dialog state
-  const [deletingRecord, setDeletingRecord] = useState<ApiStockroomMasterRecord | null>(null)
-
   // Validation errors & feedback notification
   const [errors, setErrors] = useState<{
     stockroomName?: string
@@ -82,7 +78,7 @@ export const StoreMaster: React.FC = () => {
     setNotification({ type, message })
     setTimeout(() => {
       setNotification((prev) => (prev?.message === message ? null : prev))
-    }, 3500)
+    }, 4500)
   }
 
   // Debounce search query
@@ -93,6 +89,21 @@ export const StoreMaster: React.FC = () => {
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
+
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isModalOpen])
 
   // Fetch stock rooms from backend API
   const fetchStockrooms = useCallback(async () => {
@@ -242,34 +253,44 @@ export const StoreMaster: React.FC = () => {
   // Handle Toggle Active/Inactive via PATCH /api/stockrooms/{id}/toggle-status
   const handleToggleStatus = async (record: ApiStockroomMasterRecord) => {
     setActionLoadingId(record.stockroomId)
+    const previousStatus = record.status
+    const newStatus = previousStatus === 'Active' ? 'Inactive' : 'Active'
+
+    // Optimistic UI update
+    setRecords((prev) =>
+      prev.map((r) => (r.stockroomId === record.stockroomId ? { ...r, status: newStatus } : r))
+    )
+    setSummary((prev) => {
+      const activeDiff = newStatus === 'Active' ? 1 : -1
+      return {
+        ...prev,
+        activeStockRooms: Math.max(0, prev.activeStockRooms + activeDiff),
+        inactiveStockRooms: Math.max(0, prev.inactiveStockRooms - activeDiff)
+      }
+    })
+
     try {
       const res = await stockroomService.toggleStatus(record.stockroomId)
       showNotification(
         'success',
-        res.message || `Status updated for "${record.stockroomName}"`
+        res.message || `Status updated to ${newStatus} for "${record.stockroomName}"`
       )
       await fetchStockrooms()
     } catch (err: any) {
+      // Revert optimistic update
+      setRecords((prev) =>
+        prev.map((r) => (r.stockroomId === record.stockroomId ? { ...r, status: previousStatus } : r))
+      )
+      setSummary((prev) => {
+        const activeDiff = previousStatus === 'Active' ? 1 : -1
+        return {
+          ...prev,
+          activeStockRooms: Math.max(0, prev.activeStockRooms + activeDiff),
+          inactiveStockRooms: Math.max(0, prev.inactiveStockRooms - activeDiff)
+        }
+      })
       console.error('Failed to toggle status:', err)
       showNotification('error', err.message || 'Failed to toggle status.')
-    } finally {
-      setActionLoadingId(null)
-    }
-  }
-
-  // Handle Delete via DELETE /api/stockrooms/{id}
-  const confirmDelete = async () => {
-    if (!deletingRecord) return
-    const { stockroomId, stockroomName } = deletingRecord
-    setActionLoadingId(stockroomId)
-    try {
-      const res = await stockroomService.deleteStockroom(stockroomId)
-      showNotification('success', res.message || `Stock Room "${stockroomName}" deleted.`)
-      setDeletingRecord(null)
-      await fetchStockrooms()
-    } catch (err: any) {
-      console.error('Failed to delete stock room:', err)
-      showNotification('error', err.message || 'Failed to delete stock room.')
     } finally {
       setActionLoadingId(null)
     }
@@ -359,9 +380,9 @@ export const StoreMaster: React.FC = () => {
     <div className="w-full flex-1 flex flex-col space-y-2.5 select-none">
       {/* Notification Toast */}
       {notification && (
-        <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="fixed top-20 right-6 z-[9999] animate-in fade-in slide-in-from-top-3 duration-200 shadow-2xl">
           <div
-            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold select-none border ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold select-none border backdrop-blur-md ${
               notification.type === 'success'
                 ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B] dark:text-[#A7F3D0] dark:border-[#059669]'
                 : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#FECACA] dark:border-[#DC2626]'
@@ -432,7 +453,7 @@ export const StoreMaster: React.FC = () => {
                   setSearchQuery(e.target.value)
                   setCurrentPage(1)
                 }}
-                className="w-full pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
+                className="w-full h-8 pl-8 pr-2.5 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
               />
               {searchQuery && (
                 <button
@@ -457,7 +478,7 @@ export const StoreMaster: React.FC = () => {
                   setRowsPerPage(val === 'all' ? 'all' : Number(val))
                   setCurrentPage(1)
                 }}
-                className="h-7 px-1.5 py-0 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
+                className="h-8 px-2 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -466,25 +487,16 @@ export const StoreMaster: React.FC = () => {
               </select>
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Export records to Excel (.xlsx)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Export to Excel</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#1D63ED] hover:bg-[#1854CD] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Add a new stock room"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Add Stock Room</span>
-            </button>
+            <TooltipBottom content="Export records to Excel (.xlsx)">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Export to Excel</span>
+              </button>
+            </TooltipBottom>
           </div>
         </div>
 
@@ -574,18 +586,19 @@ export const StoreMaster: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                records.map((item) => (
+                records.map((item, idx) => (
                   <tr
                     key={item.stockroomId}
-                    className="hover:bg-[#FAF9F6] dark:hover:bg-[#252525] transition-colors"
+                    className={`${
+                      idx % 2 === 0
+                        ? 'bg-white dark:bg-[#1E1E1E]'
+                        : 'bg-[#F9F8F5] dark:bg-[#181818]'
+                    } hover:bg-[#F3F0E6] dark:hover:bg-[#252525] transition-colors border-b border-[#EAE7DF]/50 dark:border-[#2C2C2C]/50`}
                   >
                     {/* Stock Room */}
                     <td className="py-2 px-3">
-                      <div className="font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#1D63ED] shrink-0" />
-                        <span className="truncate" title={item.stockroomName}>
-                          {item.stockroomName}
-                        </span>
+                      <div className="font-semibold text-[#171717] dark:text-[#EDEDED] truncate" title={item.stockroomName}>
+                        {item.stockroomName}
                       </div>
                     </td>
 
@@ -604,87 +617,61 @@ export const StoreMaster: React.FC = () => {
                     </td>
 
                     {/* Status Badge */}
-                    <td className="py-2 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(item)}
-                        disabled={actionLoadingId === item.stockroomId}
-                        title={`Click to toggle status (currently ${item.status})`}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all cursor-pointer disabled:opacity-50 ${
-                          item.status === 'Active'
-                            ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
-                            : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
-                        }`}
-                      >
-                        {actionLoadingId === item.stockroomId ? (
-                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                        ) : (
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              item.status === 'Active'
-                                ? 'bg-[#059669] dark:bg-[#34D399]'
-                                : 'bg-[#DC2626] dark:bg-[#F87171]'
-                            }`}
-                          />
-                        )}
-                        <span>{item.status}</span>
-                      </button>
+                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                      <TooltipTop content={`Click to toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(item)}
+                          disabled={actionLoadingId === item.stockroomId}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all cursor-pointer disabled:opacity-50 ${
+                            item.status === 'Active'
+                              ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
+                              : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
+                          }`}
+                        >
+                          {actionLoadingId === item.stockroomId ? (
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                          ) : (
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                item.status === 'Active'
+                                  ? 'bg-[#059669] dark:bg-[#34D399]'
+                                  : 'bg-[#DC2626] dark:bg-[#F87171]'
+                              }`}
+                            />
+                          )}
+                          <span>{item.status}</span>
+                        </button>
+                      </TooltipTop>
                     </td>
 
                     {/* Actions */}
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         {/* Toggle Status Action */}
-                        <div className="relative group/tooltip">
+                        <TooltipTop content={`Toggle to ${item.status === 'Active' ? 'Inactive' : 'Active'}`}>
                           <button
                             type="button"
                             onClick={() => handleToggleStatus(item)}
                             disabled={actionLoadingId === item.stockroomId}
-                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer disabled:opacity-50 active:scale-95"
+                            aria-label={`Toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`}
                           >
                             <Power className="w-3.5 h-3.5" />
                           </button>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-30">
-                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
-                              Toggle to {item.status === 'Active' ? 'Inactive' : 'Active'}
-                            </div>
-                            <div className="w-1.5 h-1.5 -mt-0.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
-                          </div>
-                        </div>
+                        </TooltipTop>
 
                         {/* Edit Action */}
-                        <div className="relative group/tooltip">
+                        <TooltipTop align="end" content="Edit Stock Room">
                           <button
                             type="button"
                             onClick={() => handleEdit(item)}
-                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1D63ED] hover:bg-[#EFF6FF] dark:hover:bg-[#1E3A8A]/30 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1D63ED] hover:bg-[#EFF6FF] dark:hover:bg-[#1E3A8A]/30 transition-colors cursor-pointer active:scale-95"
+                            aria-label="Edit Stock Room"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/tooltip:flex flex-col items-center pointer-events-none z-30">
-                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
-                              Edit Stock Room
-                            </div>
-                            <div className="w-1.5 h-1.5 -mt-0.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
-                          </div>
-                        </div>
-
-                        {/* Delete Action */}
-                        <div className="relative group/tooltip">
-                          <button
-                            type="button"
-                            onClick={() => setDeletingRecord(item)}
-                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#451A1A]/40 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover/tooltip:flex flex-col items-end pointer-events-none z-30">
-                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
-                              Delete Stock Room
-                            </div>
-                            <div className="w-1.5 h-1.5 -mt-0.5 mr-2.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
-                          </div>
-                        </div>
+                        </TooltipTop>
                       </div>
                     </td>
                   </tr>
@@ -716,15 +703,16 @@ export const StoreMaster: React.FC = () => {
 
           <div className="flex items-center gap-1">
             {/* Prev Button */}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1 || isAll}
-              className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              title="Previous page"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
+            <TooltipTop content="Previous page" disabled={currentPage === 1 || isAll}>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1 || isAll}
+                className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTop>
 
             {/* Numbered Page Buttons: 1, 2, 3... */}
             {getPageNumbers().map((page, idx) => {
@@ -757,15 +745,16 @@ export const StoreMaster: React.FC = () => {
             })}
 
             {/* Next Button */}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages || isAll}
-              className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              title="Next page"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <TooltipTop content="Next page" disabled={currentPage >= totalPages || isAll}>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages || isAll}
+                className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTop>
           </div>
         </div>
       </div>
@@ -773,11 +762,11 @@ export const StoreMaster: React.FC = () => {
       {/* Add / Edit Stock Room Modal */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
           onClick={handleCloseModal}
         >
           <div
-            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-y-auto my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -798,15 +787,17 @@ export const StoreMaster: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                disabled={isSubmitting}
-                className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer disabled:opacity-50"
-                title="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <TooltipLeft content="Close">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  disabled={isSubmitting}
+                  className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </TooltipLeft>
             </div>
 
             {/* Modal Form */}
@@ -848,7 +839,7 @@ export const StoreMaster: React.FC = () => {
                     <User className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="e.g. kavita.reddy@wipro.com"
+                      placeholder="e.g. username@wipro.com"
                       value={stockroomEngineer}
                       onChange={(e) => {
                         setStockroomEngineer(e.target.value)
@@ -877,7 +868,7 @@ export const StoreMaster: React.FC = () => {
                     <ShieldCheck className="w-4 h-4 text-[#99958D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="e.g. amit.shah@wipro.com"
+                      placeholder="e.g. username@wipro.com"
                       value={stockroomLead}
                       onChange={(e) => {
                         setStockroomLead(e.target.value)
@@ -939,7 +930,7 @@ export const StoreMaster: React.FC = () => {
                   type="button"
                   onClick={handleCloseModal}
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl border border-[#FECACA] dark:border-[#DC2626]/40 bg-[#FEF2F2] hover:bg-[#FEE2E2] dark:bg-[#451A1A]/40 dark:hover:bg-[#451A1A]/70 text-[#DC2626] dark:text-[#F87171] text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -965,63 +956,6 @@ export const StoreMaster: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deletingRecord && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setDeletingRecord(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden p-6 animate-in zoom-in-95 duration-150 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-[#DC2626]/10 text-[#DC2626] flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-[#171717] dark:text-[#EDEDED]">
-                  Delete Stock Room?
-                </h3>
-                <p className="text-xs text-[#666666] dark:text-[#A0A0A0] mt-1.5 leading-relaxed">
-                  Are you sure you want to permanently delete{' '}
-                  <strong className="text-[#171717] dark:text-[#EDEDED]">
-                    "{deletingRecord.stockroomName}"
-                  </strong>
-                  ? This action cannot be undone.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
-              <button
-                type="button"
-                onClick={() => setDeletingRecord(null)}
-                disabled={actionLoadingId === deletingRecord.stockroomId}
-                className="px-4 py-2 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={actionLoadingId === deletingRecord.stockroomId}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                {actionLoadingId === deletingRecord.stockroomId ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-                <span>
-                  {actionLoadingId === deletingRecord.stockroomId ? 'Deleting...' : 'Delete'}
-                </span>
-              </button>
-            </div>
           </div>
         </div>
       )}

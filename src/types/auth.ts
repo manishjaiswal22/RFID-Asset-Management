@@ -6,6 +6,7 @@ export interface AuthUser {
   userType: string
   stockroomId: number | null
   stockroomName: string | null
+  allowedSections?: string[]
 }
 
 export interface LoginRequest {

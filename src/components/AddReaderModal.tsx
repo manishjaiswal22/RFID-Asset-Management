@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { RFIDReader } from '../types/dashboard'
 
@@ -20,6 +20,20 @@ export const AddReaderModal: React.FC<AddReaderModalProps> = ({
   const [antennaCount, setAntennaCount] = useState(4)
   const [status, setStatus] = useState<'online' | 'offline'>('online')
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -39,7 +53,7 @@ export const AddReaderModal: React.FC<AddReaderModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/30 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="w-full max-w-md rounded-[22px] bg-[#FAF9F6] border border-[#EAE7DF] shadow-xl overflow-hidden">
         <div className="px-6 py-4 flex items-center justify-between border-b border-[#EAE7DF]">
           <h3 className="text-base font-semibold text-[#171717]">Add RFID Reader</h3>
@@ -142,7 +156,7 @@ export const AddReaderModal: React.FC<AddReaderModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-[#666666] hover:bg-[#EDEAE2] transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-semibold border border-[#FECACA] dark:border-[#DC2626]/40 bg-[#FEF2F2] hover:bg-[#FEE2E2] dark:bg-[#451A1A]/40 dark:hover:bg-[#451A1A]/70 text-[#DC2626] dark:text-[#F87171] transition-colors cursor-pointer"
             >
               Cancel
             </button>

@@ -7,7 +7,7 @@ export const getLoginApiUrl = (): string => {
   const envUrl = (
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
-    'http://172.20.204.134:5187'
+    '/api'
   ).trim()
 
   if (envUrl.endsWith('/api/auth/login')) {
@@ -15,6 +15,9 @@ export const getLoginApiUrl = (): string => {
   }
   if (envUrl.endsWith('/api')) {
     return `${envUrl}/auth/login`
+  }
+  if (!envUrl || envUrl === '/') {
+    return '/api/auth/login'
   }
   return `${envUrl.replace(/\/+$/, '')}/api/auth/login`
 }

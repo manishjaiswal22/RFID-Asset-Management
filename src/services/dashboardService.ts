@@ -13,20 +13,26 @@ const getApiBaseUrl = (): string => {
   const envUrl = (
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
-    'http://172.20.204.134:5187'
+    '/api'
   ).trim()
 
   if (envUrl.endsWith('/api')) {
     return envUrl
   }
+  if (!envUrl || envUrl === '/') {
+    return '/api'
+  }
   return `${envUrl.replace(/\/+$/, '')}/api`
 }
 
 const checkResponseAuth = (response: Response) => {
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     authService.logout()
     window.dispatchEvent(new CustomEvent('auth:unauthorized'))
     throw new Error('Session expired. Please log in again.')
+  }
+  if (response.status === 403) {
+    throw new Error('Access denied: You do not have permission to view this section.')
   }
 }
 

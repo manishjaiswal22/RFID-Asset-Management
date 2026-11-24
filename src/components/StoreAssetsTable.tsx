@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 import { exportToExcel } from '../utils/excelExport'
+import { TooltipTop, TooltipBottom } from './Tooltip'
 
 export type { StoreAssetRecord }
 export { DUMMY_STORE_RECORDS }
@@ -304,14 +305,16 @@ export default function StoreAssetsTable({
                 {activeFilteredStore.storeName}
               </span>
               {onClearStoreFilter && (
-                <button
-                  type="button"
-                  onClick={onClearStoreFilter}
-                  title="Show all stock rooms"
-                  className="p-0.5 rounded-full hover:bg-[#00a8e7]/20 transition-colors cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+                <TooltipTop content="Show all stock rooms">
+                  <button
+                    type="button"
+                    onClick={onClearStoreFilter}
+                    className="p-0.5 rounded-full hover:bg-[#00a8e7]/20 transition-colors cursor-pointer"
+                    aria-label="Show all stock rooms"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </TooltipTop>
               )}
             </div>
           )}
@@ -327,7 +330,7 @@ export default function StoreAssetsTable({
                 const val = e.target.value
                 handleRowsPerPageChange(val === 'all' ? 'all' : Number(val))
               }}
-              className="h-7 px-1.5 py-0 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
+              className="h-8 px-2 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
             >
               <option value={5}>5</option>
               <option value={10}>10</option>
@@ -336,14 +339,15 @@ export default function StoreAssetsTable({
             </select>
           </div>
 
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-            title="Export filtered records to Excel (.xlsx)"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Export to Excel</span>
-          </button>
+          <TooltipBottom content="Export filtered records to Excel (.xlsx)">
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Export to Excel</span>
+            </button>
+          </TooltipBottom>
         </div>
       </div>
 
@@ -436,11 +440,15 @@ export default function StoreAssetsTable({
                 </td>
               </tr>
             ) : (
-              recordsToDisplay.map((record) => (
+              recordsToDisplay.map((record, idx) => (
                 <tr
                   key={record.id}
                   onClick={() => onNavigateToStore?.(record.id)}
-                  className={`hover:bg-[#F0F6FF]/60 dark:hover:bg-[#1E293B]/60 transition-colors ${
+                  className={`${
+                    idx % 2 === 0
+                      ? 'bg-white dark:bg-[#1E1E1E]'
+                      : 'bg-[#F9F8F5] dark:bg-[#181818]'
+                  } hover:bg-[#F0F6FF]/70 dark:hover:bg-[#1E293B]/70 transition-colors ${
                     onNavigateToStore ? 'cursor-pointer group' : ''
                   }`}
                 >
@@ -451,7 +459,14 @@ export default function StoreAssetsTable({
                         {record.storeName}
                       </span>
                       {onNavigateToStore && (
-                        <div className="relative inline-flex items-center group/view-tip">
+                        <TooltipTop
+                          content={
+                            <span className="flex items-center gap-1">
+                              <span>View Stock Room Details</span>
+                              <ArrowUpRight className="w-3 h-3 text-[#38BDF8] stroke-[2.5]" />
+                            </span>
+                          }
+                        >
                           <button
                             type="button"
                             onClick={(e) => {
@@ -461,24 +476,9 @@ export default function StoreAssetsTable({
                             aria-label={`View ${record.storeName} in Stock Room Dashboard`}
                             className="p-1 rounded-md text-[#64748B] dark:text-[#94A3B8] hover:text-[#00a8e7] dark:hover:text-[#38bdf8] hover:bg-[#EBF8FE] dark:hover:bg-[#00a8e7]/15 transition-all duration-150 cursor-pointer shrink-0 active:scale-95"
                           >
-                            <Eye className="w-3.5 h-3.5 transition-transform duration-150 group-hover/view-tip:scale-110" />
+                            <Eye className="w-3.5 h-3.5 transition-transform duration-150" />
                           </button>
-
-                          {/* Modern High-Fidelity Tooltip */}
-                          <div
-                            role="tooltip"
-                            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 invisible group-hover/view-tip:opacity-100 group-hover/view-tip:visible scale-90 group-hover/view-tip:scale-100 translate-y-1.5 group-hover/view-tip:translate-y-0 transition-all duration-200 ease-out flex flex-col items-center drop-shadow-xl"
-                          >
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 dark:border-slate-600/80 shadow-2xl whitespace-nowrap">
-                              <span className="text-[11px] font-semibold text-slate-100 tracking-tight">
-                                View Stock Room Details
-                              </span>
-                              <ArrowUpRight className="w-3 h-3 text-[#38BDF8] stroke-[2.5]" />
-                            </div>
-                            {/* Downward Caret */}
-                            <div className="w-2 h-2 -mt-1 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 dark:border-slate-600/80 rotate-45 transform" />
-                          </div>
-                        </div>
+                        </TooltipTop>
                       )}
                     </div>
                   </td>
@@ -531,14 +531,15 @@ export default function StoreAssetsTable({
         </div>
 
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1 || isAll}
-            className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Previous page"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
+          <TooltipTop content="Previous page" disabled={currentPage === 1 || isAll}>
+            <button
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1 || isAll}
+              className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTop>
 
           {getPageNumbers().map((page, idx) => {
             if (page === '...') {
@@ -569,14 +570,15 @@ export default function StoreAssetsTable({
             )
           })}
 
-          <button
-            onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage >= totalPages || isAll}
-            className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Next page"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          <TooltipTop content="Next page" disabled={currentPage >= totalPages || isAll}>
+            <button
+              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage >= totalPages || isAll}
+              className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTop>
         </div>
       </div>
     </div>

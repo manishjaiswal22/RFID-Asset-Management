@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   User,
   Lock,
@@ -14,6 +14,7 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Edit2,
   Trash2,
   Power,
@@ -22,11 +23,14 @@ import {
   X,
   Building2,
   Shield,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react'
 import { exportToExcel } from '../utils/excelExport'
 import { userService } from '../services/userService'
+import { authService } from '../services/authService'
 import { dashboardService } from '../services/dashboardService'
+import { TooltipTop, TooltipBottom, TooltipLeft } from './Tooltip'
 import type {
   ApiUserRecord,
   UserSummary,
@@ -70,10 +74,19 @@ export const UserMaster: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
+  // Delete confirmation dialog state
+  const [deletingUser, setDeletingUser] = useState<ApiUserRecord | null>(null)
+
+  // Searchable stock room dropdown state in modal
+  const [isStockroomDropdownOpen, setIsStockroomDropdownOpen] = useState(false)
+  const [stockroomFilterQuery, setStockroomFilterQuery] = useState('')
+  const stockroomDropdownRef = useRef<HTMLDivElement>(null)
+
   // Copied password state for quick feedback
   const [copiedId, setCopiedId] = useState<number | null>(null)
   // Per-row revealed password map
   const [revealedPasswords, setRevealedPasswords] = useState<Record<number, boolean>>({})
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null)
 
   // Form validation errors & notifications
   const [errors, setErrors] = useState<{
@@ -100,7 +113,7 @@ export const UserMaster: React.FC = () => {
     setNotification({ type, message })
     setTimeout(() => {
       setNotification((prev) => (prev?.message === message ? null : prev))
-    }, 3500)
+    }, 4500)
   }, [])
 
   // Debounce search query to prevent excessive API requests
@@ -111,6 +124,44 @@ export const UserMaster: React.FC = () => {
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery])
+
+  // Prevent background scrolling when modal or delete confirmation is open
+  useEffect(() => {
+    if (isModalOpen || deletingUser) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isModalOpen, deletingUser])
+
+  // Filter stockrooms for searchable dropdown
+  const filteredStockrooms = useMemo(() => {
+    if (!stockroomFilterQuery.trim()) return stockrooms
+    const q = stockroomFilterQuery.toLowerCase()
+    return stockrooms.filter((s) => s.stockroomName.toLowerCase().includes(q))
+  }, [stockrooms, stockroomFilterQuery])
+
+  // Click outside to close searchable stockroom dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        stockroomDropdownRef.current &&
+        !stockroomDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsStockroomDropdownOpen(false)
+      }
+    }
+    if (isStockroomDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isStockroomDropdownOpen])
 
   // Fetch stockrooms for dropdown once on mount
   useEffect(() => {
@@ -263,6 +314,8 @@ export const UserMaster: React.FC = () => {
     setShowPassword(false)
     setEditingId(null)
     setErrors({})
+    setIsStockroomDropdownOpen(false)
+    setStockroomFilterQuery('')
   }
 
   const handleOpenAddModal = () => {
@@ -285,31 +338,97 @@ export const UserMaster: React.FC = () => {
     setStockroomId(record.stockroomId || '')
     setIsStatus(record.status || 'Active')
     setErrors({})
+    setIsStockroomDropdownOpen(false)
+    setStockroomFilterQuery('')
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id: number, name: string) => {
-    if (window.confirm(`Are you sure you want to delete user "${name}"?`)) {
-      try {
-        const res = await userService.deleteUser(id)
-        showNotification('success', res.message || `User "${name}" deleted.`)
-        if (editingId === id) handleClear()
-        await fetchUsers()
-      } catch (err: any) {
-        console.error('Error deleting user:', err)
-        showNotification('error', err?.message || `Failed to delete user "${name}".`)
-      }
+  const handleDelete = (item: ApiUserRecord) => {
+    const currentUser = authService.getUser()
+    const isSelf =
+      currentUser &&
+      (item.userId === currentUser.userId ||
+        item.userName.toLowerCase() === currentUser.userName?.toLowerCase())
+
+    if (isSelf) {
+      showNotification('error', 'You cannot delete your own logged-in account.')
+      return
+    }
+
+    setDeletingUser(item)
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return
+    const { userId, userName } = deletingUser
+    setActionLoadingId(userId)
+    try {
+      const res = await userService.deleteUser(userId)
+      showNotification('success', res.message || `User "${userName}" deleted successfully.`)
+      if (editingId === userId) handleClear()
+      setDeletingUser(null)
+      await fetchUsers()
+    } catch (err: any) {
+      console.error('Error deleting user:', err)
+      showNotification('error', err?.message || `Failed to delete user "${userName}".`)
+    } finally {
+      setActionLoadingId(null)
     }
   }
 
-  const handleToggleStatus = async (id: number) => {
+  const handleToggleStatus = async (item: ApiUserRecord) => {
+    const currentUser = authService.getUser()
+    const isSelf =
+      currentUser &&
+      (item.userId === currentUser.userId ||
+        item.userName.toLowerCase() === currentUser.userName?.toLowerCase())
+
+    if (isSelf) {
+      showNotification('error', 'You cannot deactivate your own logged-in account.')
+      return
+    }
+
+    setActionLoadingId(item.userId)
+    const previousStatus = item.status
+    const newStatus = previousStatus === 'Active' ? 'Inactive' : 'Active'
+
+    // Optimistic UI update
+    setRecords((prev) =>
+      prev.map((u) => (u.userId === item.userId ? { ...u, status: newStatus } : u))
+    )
+    setSummary((prev) => {
+      const activeDiff = newStatus === 'Active' ? 1 : -1
+      return {
+        ...prev,
+        activeUsers: Math.max(0, prev.activeUsers + activeDiff),
+        inactiveUsers: Math.max(0, prev.inactiveUsers - activeDiff)
+      }
+    })
+
     try {
-      const res = await userService.toggleStatus(id)
-      showNotification('success', res.message || 'User status updated.')
+      const res = await userService.toggleStatus(item.userId)
+      showNotification(
+        'success',
+        res.message || `User "${item.userName}" status updated to ${newStatus}.`
+      )
       await fetchUsers()
     } catch (err: any) {
+      // Revert optimistic update
+      setRecords((prev) =>
+        prev.map((u) => (u.userId === item.userId ? { ...u, status: previousStatus } : u))
+      )
+      setSummary((prev) => {
+        const activeDiff = previousStatus === 'Active' ? 1 : -1
+        return {
+          ...prev,
+          activeUsers: Math.max(0, prev.activeUsers + activeDiff),
+          inactiveUsers: Math.max(0, prev.inactiveUsers - activeDiff)
+        }
+      })
       console.error('Error toggling status:', err)
       showNotification('error', err?.message || 'Failed to toggle status.')
+    } finally {
+      setActionLoadingId(null)
     }
   }
 
@@ -388,15 +507,16 @@ export const UserMaster: React.FC = () => {
       `user_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
       'Users'
     )
+    showNotification('success', `Exported ${records.length} users to Excel.`)
   }
 
   return (
     <div className="w-full flex-1 flex flex-col space-y-2.5 select-none">
       {/* Toast Notification */}
       {notification && (
-        <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="fixed top-20 right-6 z-[9999] animate-in fade-in slide-in-from-top-3 duration-200 shadow-2xl">
           <div
-            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold select-none border ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold select-none border backdrop-blur-md ${
               notification.type === 'success'
                 ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B] dark:text-[#A7F3D0] dark:border-[#059669]'
                 : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#FECACA] dark:border-[#DC2626]'
@@ -422,17 +542,17 @@ export const UserMaster: React.FC = () => {
 
         {/* Quick Metric Pills & Add User Button */}
         <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#FAF9F6] dark:bg-[#222222] border border-[#EAE7DF] dark:border-[#2C2C2C] text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
+          <div className="h-8 flex items-center gap-1.5 px-3 rounded-xl bg-[#FAF9F6] dark:bg-[#222222] border border-[#EAE7DF] dark:border-[#2C2C2C] text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
             <User className="w-3.5 h-3.5 text-[#1D63ED]" />
             <span>Total:</span>
             <span className="font-bold">{summary.totalUsers}</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#059669] text-xs font-semibold text-[#059669] dark:text-[#34D399]">
+          <div className="h-8 flex items-center gap-1.5 px-3 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#059669] text-xs font-semibold text-[#059669] dark:text-[#34D399]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
             <span>Active:</span>
             <span className="font-bold">{summary.activeUsers}</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#FEF2F2] dark:bg-[#451A1A]/40 border border-[#FECACA] dark:border-[#DC2626] text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
+          <div className="h-8 flex items-center gap-1.5 px-3 rounded-xl bg-[#FEF2F2] dark:bg-[#451A1A]/40 border border-[#FECACA] dark:border-[#DC2626] text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
             <span>Inactive:</span>
             <span className="font-bold">{summary.inactiveUsers}</span>
@@ -460,7 +580,7 @@ export const UserMaster: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search username, email, contact, stockroom..."
-              className="w-full bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all"
+              className="w-full h-8 bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl pl-8 pr-3 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all"
             />
           </div>
 
@@ -475,7 +595,7 @@ export const UserMaster: React.FC = () => {
                   setRowsPerPage(val)
                   setCurrentPage(1)
                 }}
-                className="bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-lg px-2 py-1 text-xs text-[#171717] dark:text-[#EDEDED] focus:outline-hidden cursor-pointer"
+                className="h-8 bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl px-2.5 text-xs text-[#171717] dark:text-[#EDEDED] focus:outline-hidden cursor-pointer"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -485,26 +605,16 @@ export const UserMaster: React.FC = () => {
             </div>
 
             {/* Export to Excel Button */}
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Export filtered records to Excel (.xlsx)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Export to Excel</span>
-            </button>
-
-            {/* Add User Button */}
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#1D63ED] hover:bg-[#1854CD] text-white text-xs font-semibold transition-colors cursor-pointer"
-              title="Add a new user"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Add User</span>
-            </button>
+            <TooltipBottom content="Export filtered records to Excel (.xlsx)">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Export to Excel</span>
+              </button>
+            </TooltipBottom>
           </div>
         </div>
 
@@ -615,10 +725,22 @@ export const UserMaster: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                records.map((item) => (
+                records.map((item, idx) => {
+                  const currentUser = authService.getUser()
+                  const isSelf = Boolean(
+                    currentUser &&
+                      (item.userId === currentUser.userId ||
+                        item.userName.toLowerCase() === currentUser.userName?.toLowerCase())
+                  )
+
+                  return (
                   <tr
                     key={item.userId}
-                    className="hover:bg-[#FAF9F6]/80 dark:hover:bg-[#252525]/50 transition-colors"
+                    className={`${
+                      idx % 2 === 0
+                        ? 'bg-white dark:bg-[#1E1E1E]'
+                        : 'bg-[#F9F8F5] dark:bg-[#181818]'
+                    } hover:bg-[#F3F0E6] dark:hover:bg-[#252525] transition-colors border-b border-[#EAE7DF]/50 dark:border-[#2C2C2C]/50`}
                   >
                     {/* User Name */}
                     <td className="py-2 px-3 font-semibold text-[#171717] dark:text-[#EDEDED] whitespace-nowrap">
@@ -680,7 +802,7 @@ export const UserMaster: React.FC = () => {
                         <span className="font-mono text-[11.5px] text-[#171717] dark:text-[#EDEDED] bg-[#FAF9F6] dark:bg-[#181818] px-2 py-0.5 rounded-md border border-[#EAE7DF] dark:border-[#333333]">
                           {revealedPasswords[item.userId] ? item.password || '••••••••' : '••••••••'}
                         </span>
-                        <div className="relative inline-flex items-center group/pw-tip">
+                        <TooltipTop content={revealedPasswords[item.userId] ? 'Hide password' : 'Show password'}>
                           <button
                             type="button"
                             onClick={() => toggleRevealRowPassword(item.userId)}
@@ -693,87 +815,128 @@ export const UserMaster: React.FC = () => {
                               <Eye className="w-3 h-3" />
                             )}
                           </button>
-                          <div
-                            role="tooltip"
-                            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 opacity-0 invisible group-hover/pw-tip:opacity-100 group-hover/pw-tip:visible scale-90 group-hover/pw-tip:scale-100 translate-y-1 group-hover/pw-tip:translate-y-0 transition-all duration-200 ease-out flex flex-col items-center drop-shadow-lg"
+                        </TooltipTop>
+
+                        <TooltipTop content={copiedId === item.userId ? 'Copied!' : 'Copy password'}>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPassword(item.userId, item.password)}
+                            className="p-1 rounded text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
+                            aria-label="Copy password to clipboard"
                           >
-                            <div className="px-2 py-0.5 rounded-md bg-[#0F172A]/95 dark:bg-[#1E293B]/95 text-white backdrop-blur-md border border-slate-700/80 text-[10.5px] font-medium whitespace-nowrap shadow-xl">
-                              {revealedPasswords[item.userId] ? 'Hide password' : 'Show password'}
-                            </div>
-                            <div className="w-1.5 h-1.5 -mt-0.5 bg-[#0F172A]/95 dark:bg-[#1E293B]/95 border-r border-b border-slate-700/80 rotate-45 transform" />
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPassword(item.userId, item.password)}
-                          className="p-1 rounded text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
-                          title="Copy password to clipboard"
-                        >
-                          {copiedId === item.userId ? (
-                            <Check className="w-3 h-3 text-[#059669]" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </button>
+                            {copiedId === item.userId ? (
+                              <Check className="w-3 h-3 text-[#059669]" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </TooltipTop>
                       </div>
                     </td>
 
                     {/* Status */}
                     <td className="py-2 px-3 whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(item.userId)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all cursor-pointer ${
-                          item.status === 'Active'
-                            ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
-                            : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
-                        }`}
-                        title="Click to toggle status"
+                      <TooltipTop
+                        content={
+                          isSelf
+                            ? 'You cannot deactivate your own logged-in account'
+                            : `Click to toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`
+                        }
                       >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            item.status === 'Active'
-                              ? 'bg-[#059669] dark:bg-[#34D399]'
-                              : 'bg-[#DC2626] dark:bg-[#F87171]'
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(item)}
+                          disabled={isSelf || actionLoadingId === item.userId}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border transition-all ${
+                            isSelf
+                              ? 'opacity-80 cursor-not-allowed bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
+                              : item.status === 'Active'
+                                ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669] cursor-pointer'
+                                : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626] cursor-pointer'
                           }`}
-                        />
-                        <span>{item.status}</span>
-                      </button>
+                        >
+                          {actionLoadingId === item.userId ? (
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                          ) : (
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                item.status === 'Active'
+                                  ? 'bg-[#059669] dark:bg-[#34D399]'
+                                  : 'bg-[#DC2626] dark:bg-[#F87171]'
+                              }`}
+                            />
+                          )}
+                          <span>{item.status}</span>
+                        </button>
+                      </TooltipTop>
                     </td>
 
                     {/* Actions */}
                     <td className="py-2 px-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(item.userId)}
-                          className="p-1 rounded-md text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer"
-                          title={`Toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`}
+                        {/* Toggle Status Action */}
+                        <TooltipTop
+                          content={
+                            isSelf
+                              ? 'You cannot deactivate your own account'
+                              : `Toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`
+                          }
                         >
-                          <Power className="w-3.5 h-3.5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(item)}
+                            disabled={isSelf || actionLoadingId === item.userId}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelf
+                                ? 'text-[#A0A0A0] opacity-40 cursor-not-allowed'
+                                : 'text-[#64748B] hover:text-[#059669] hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 cursor-pointer active:scale-95'
+                            }`}
+                            aria-label={
+                              isSelf
+                                ? 'You cannot deactivate your own account'
+                                : `Toggle status to ${item.status === 'Active' ? 'Inactive' : 'Active'}`
+                            }
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </button>
+                        </TooltipTop>
 
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(item)}
-                          className="p-1 rounded-md text-[#64748B] hover:text-[#1D63ED] hover:bg-[#EFF6FF] dark:hover:bg-[#1E3A8A]/30 transition-colors cursor-pointer"
-                          title="Edit User"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Edit Action */}
+                        <TooltipTop content="Edit User">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(item)}
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#1D63ED] hover:bg-[#EFF6FF] dark:hover:bg-[#1E3A8A]/30 transition-colors cursor-pointer active:scale-95"
+                            aria-label="Edit User"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </TooltipTop>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.userId, item.userName)}
-                          className="p-1 rounded-md text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#451A1A]/40 transition-colors cursor-pointer"
-                          title="Delete User"
+                        {/* Delete Action */}
+                        <TooltipTop
+                          align="end"
+                          content={isSelf ? 'You cannot delete your own account' : 'Delete User'}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item)}
+                            disabled={isSelf || actionLoadingId === item.userId}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isSelf
+                                ? 'text-[#A0A0A0] opacity-40 cursor-not-allowed'
+                                : 'text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEF2F2] dark:hover:bg-[#451A1A]/40 cursor-pointer active:scale-95'
+                            }`}
+                            aria-label={isSelf ? 'You cannot delete your own account' : 'Delete User'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </TooltipTop>
                       </div>
                     </td>
                   </tr>
-                ))
+                )
+              })
               )}
             </tbody>
           </table>
@@ -794,15 +957,16 @@ export const UserMaster: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1 || isAll}
-              className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              title="Previous page"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
+            <TooltipTop content="Previous page" disabled={currentPage === 1 || isAll}>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1 || isAll}
+                className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTop>
 
             {getPageNumbers().map((pageNum, idx) => {
               if (pageNum === '...') {
@@ -830,15 +994,16 @@ export const UserMaster: React.FC = () => {
               )
             })}
 
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages || isAll}
-              className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              title="Next page"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <TooltipTop content="Next page" disabled={currentPage >= totalPages || isAll}>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages || isAll}
+                className="w-7 h-7 flex items-center justify-center rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#171717] dark:text-[#EDEDED] hover:bg-[#171717] hover:text-white dark:hover:bg-white dark:hover:text-[#171717] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTop>
           </div>
         </div>
       </div>
@@ -846,7 +1011,7 @@ export const UserMaster: React.FC = () => {
       {/* Add / Edit User Modal */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
           onClick={handleCloseModal}
         >
           <div
@@ -871,14 +1036,16 @@ export const UserMaster: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleCloseModal}
-                className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer"
-                title="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <TooltipLeft content="Close">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="p-2 rounded-xl text-[#99958D] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#2C2C2C] transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </TooltipLeft>
             </div>
 
             {/* Modal Form */}
@@ -921,38 +1088,147 @@ export const UserMaster: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Stock Room Dropdown (active when userType === STOCKROOM) */}
-                <div>
+                {/* Searchable Stock Room Dropdown (active when userType === STOCKROOM) */}
+                <div ref={stockroomDropdownRef} className="relative">
                   <label className="block text-xs font-bold text-[#171717] dark:text-[#EDEDED] uppercase tracking-wider mb-1.5">
                     Assigned Stock Room {userType === 'STOCKROOM' && <span className="text-[#DC2626]">*</span>}
                   </label>
                   <div className="relative">
-                    <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-                    <select
+                    <button
+                      type="button"
                       disabled={userType === 'ADMIN'}
-                      value={stockroomId}
-                      onChange={(e) => {
-                        setStockroomId(e.target.value ? Number(e.target.value) : '')
-                        if (errors.stockroomId) setErrors((prev) => ({ ...prev, stockroomId: undefined }))
+                      onClick={() => {
+                        if (userType !== 'ADMIN') {
+                          setIsStockroomDropdownOpen(!isStockroomDropdownOpen)
+                          setStockroomFilterQuery('')
+                        }
                       }}
-                      className={`w-full bg-white dark:bg-[#222] border rounded-xl pl-10 pr-3.5 py-2 text-xs sm:text-sm text-[#171717] dark:text-[#EDEDED] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
-                        userType === 'ADMIN' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      className={`w-full bg-white dark:bg-[#222] border rounded-xl pl-10 pr-9 py-2 text-xs sm:text-sm text-left flex items-center justify-between transition-all ${
+                        userType === 'ADMIN'
+                          ? 'opacity-50 cursor-not-allowed border-[#EAE7DF] dark:border-[#333333]'
+                          : 'cursor-pointer hover:border-[#171717]/40 dark:hover:border-white/40'
                       } ${
                         errors.stockroomId
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
+                          : isStockroomDropdownOpen
+                          ? 'border-[#171717] dark:border-white ring-2 ring-[#171717]/10 dark:ring-white/10'
                           : 'border-[#EAE7DF] dark:border-[#333333]'
                       }`}
                     >
-                      <option value="">{userType === 'ADMIN' ? 'Not Applicable (Admin)' : 'Select Stock Room...'}</option>
-                      {stockrooms.map((s) => (
-                        <option key={s.stockroomId} value={s.stockroomId}>
-                          {s.stockroomName}
-                        </option>
-                      ))}
-                    </select>
+                      <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
+                      <span
+                        className={`truncate ${
+                          stockroomId && stockrooms.find((s) => s.stockroomId === stockroomId)
+                            ? 'text-[#171717] dark:text-[#EDEDED] font-semibold'
+                            : 'text-[#99958D] dark:text-[#737373]'
+                        }`}
+                      >
+                        {userType === 'ADMIN'
+                          ? 'Not Applicable (Admin)'
+                          : stockroomId && stockrooms.find((s) => s.stockroomId === stockroomId)
+                          ? stockrooms.find((s) => s.stockroomId === stockroomId)?.stockroomName
+                          : 'Select Stock Room...'}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#99958D] transition-transform duration-200 pointer-events-none ${
+                          isStockroomDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* Clear selection button */}
+                    {userType !== 'ADMIN' && stockroomId && !isStockroomDropdownOpen && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setStockroomId('')
+                        }}
+                        className="absolute right-8 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-[#EAE7DF] dark:hover:bg-[#333] text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
+                        title="Clear stock room"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
+
                   {errors.stockroomId && (
                     <p className="mt-1 text-xs font-medium text-[#DC2626]">{errors.stockroomId}</p>
+                  )}
+
+                  {/* Dropdown Menu with Search Input */}
+                  {isStockroomDropdownOpen && userType !== 'ADMIN' && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                      {/* Search Input */}
+                      <div className="p-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323]">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-[#99958D] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="Search stock room..."
+                            value={stockroomFilterQuery}
+                            onChange={(e) => setStockroomFilterQuery(e.target.value)}
+                            className="w-full h-8 pl-8 pr-7 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] focus:outline-hidden focus:border-[#171717] dark:focus:border-white transition-colors"
+                          />
+                          {stockroomFilterQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setStockroomFilterQuery('')}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white p-0.5 cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stockroom List */}
+                      <div className="max-h-52 overflow-y-auto p-1.5 space-y-0.5 [scrollbar-width:thin]">
+                        {filteredStockrooms.length === 0 ? (
+                          <div className="py-4 px-3 text-center text-xs text-[#99958D]">
+                            No stock rooms found matching "{stockroomFilterQuery}"
+                          </div>
+                        ) : (
+                          filteredStockrooms.map((s) => {
+                            const isSelected = s.stockroomId === stockroomId
+                            return (
+                              <button
+                                key={s.stockroomId}
+                                type="button"
+                                onClick={() => {
+                                  setStockroomId(s.stockroomId)
+                                  setIsStockroomDropdownOpen(false)
+                                  setStockroomFilterQuery('')
+                                  if (errors.stockroomId) {
+                                    setErrors((prev) => ({ ...prev, stockroomId: undefined }))
+                                  }
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#1D63ED]/10 text-[#1D63ED] dark:text-[#60A5FA]'
+                                    : 'text-[#171717] dark:text-[#EDEDED] hover:bg-[#F3F1EA] dark:hover:bg-[#2C2C2C]'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <Building2
+                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                      isSelected
+                                        ? 'text-[#1D63ED] dark:text-[#60A5FA]'
+                                        : 'text-[#99958D]'
+                                    }`}
+                                  />
+                                  <span className="truncate">{s.stockroomName}</span>
+                                </div>
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-[#1D63ED] dark:text-[#60A5FA] shrink-0 ml-2" />
+                                )}
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -973,7 +1249,7 @@ export const UserMaster: React.FC = () => {
                         setUserName(e.target.value)
                         if (errors.userName) setErrors((prev) => ({ ...prev, userName: undefined }))
                       }}
-                      placeholder="e.g. karthik.iyer"
+                      placeholder="e.g. username"
                       className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
                         errors.userName
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
@@ -1014,14 +1290,16 @@ export const UserMaster: React.FC = () => {
                           : 'border-[#EAE7DF] dark:border-[#333333] focus:border-[#171717] dark:focus:border-white'
                       }`}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                    <TooltipLeft content={showPassword ? 'Hide password' : 'Show password'}>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </TooltipLeft>
                   </div>
                   {errors.password && (
                     <p className="mt-1.5 text-xs font-medium text-[#DC2626]">{errors.password}</p>
@@ -1045,7 +1323,7 @@ export const UserMaster: React.FC = () => {
                         setEmail(e.target.value)
                         if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
                       }}
-                      placeholder="e.g. karthik.iyer@wipro.com"
+                      placeholder="e.g. username@wipro.com"
                       className={`w-full bg-[#FAF9F6] dark:bg-[#181818] border rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all ${
                         errors.email
                           ? 'border-[#DC2626] dark:border-[#DC2626]'
@@ -1111,7 +1389,7 @@ export const UserMaster: React.FC = () => {
                   type="button"
                   disabled={isSubmitting}
                   onClick={handleCloseModal}
-                  className="px-5 py-2.5 rounded-xl border border-[#EAE7DF] dark:border-[#333333] bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] hover:text-[#171717] dark:hover:text-white hover:bg-[#FAF9F6] text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl border border-[#FECACA] dark:border-[#DC2626]/40 bg-[#FEF2F2] hover:bg-[#FEE2E2] dark:bg-[#451A1A]/40 dark:hover:bg-[#451A1A]/70 text-[#DC2626] dark:text-[#F87171] text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1139,6 +1417,62 @@ export const UserMaster: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {deletingUser && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
+          onClick={() => setDeletingUser(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden p-6 animate-in zoom-in-95 duration-150 flex flex-col my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[#DC2626]/10 text-[#DC2626] flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-[#171717] dark:text-[#EDEDED]">
+                  Delete User?
+                </h3>
+                <p className="text-xs text-[#666666] dark:text-[#A0A0A0] mt-1.5 leading-relaxed">
+                  Are you sure you want to permanently delete user{' '}
+                  <strong className="text-[#171717] dark:text-[#EDEDED]">
+                    "{deletingUser.userName}"
+                  </strong>
+                  ? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C]">
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                disabled={actionLoadingId === deletingUser.userId}
+                className="px-4 py-2 rounded-xl border border-[#FECACA] dark:border-[#DC2626]/40 bg-[#FEF2F2] hover:bg-[#FEE2E2] dark:bg-[#451A1A]/40 dark:hover:bg-[#451A1A]/70 text-[#DC2626] dark:text-[#F87171] text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteUser}
+                disabled={actionLoadingId === deletingUser.userId}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {actionLoadingId === deletingUser.userId ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {actionLoadingId === deletingUser.userId ? 'Deleting...' : 'Delete User'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}

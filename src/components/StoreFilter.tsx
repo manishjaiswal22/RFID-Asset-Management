@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Building2, Search, ChevronDown, Check, X, Loader2 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS } from '../data/storesData'
 import { dashboardService } from '../services/dashboardService'
+import { TooltipBottom } from './Tooltip'
 
 export interface StoreItem {
   id: string
@@ -183,16 +184,18 @@ export default function StoreFilter({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {currentStore.id !== 'all' && (
-            <span
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSelect('all')
-              }}
-              title="Reset to All Stock Rooms"
-              className="p-0.5 rounded-full hover:bg-[#EAE7DF] dark:hover:bg-[#333333] text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </span>
+            <TooltipBottom content="Reset to All Stock Rooms">
+              <span
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelect('all')
+                }}
+                className="p-0.5 rounded-full hover:bg-[#EAE7DF] dark:hover:bg-[#333333] text-[#99958D] hover:text-[#171717] dark:hover:text-white transition-colors cursor-pointer"
+                aria-label="Reset to All Stock Rooms"
+              >
+                <X className="w-3 h-3" />
+              </span>
+            </TooltipBottom>
           )}
           <ChevronDown
             className={`w-3.5 h-3.5 text-[#99958D] transition-transform duration-200 ${
