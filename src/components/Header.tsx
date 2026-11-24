@@ -78,9 +78,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout, userName, currentUser 
               <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] whitespace-nowrap">
                 Welcome {displayName}
               </span>
-              <span className="hidden sm:inline-flex px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-[#1D63ED]/10 text-[#1D63ED] dark:text-[#60A5FA] border border-[#1D63ED]/20">
-                {displayRole}
-              </span>
             </div>
             <ChevronDown className={`w-3.5 h-3.5 text-[#99958D] shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
