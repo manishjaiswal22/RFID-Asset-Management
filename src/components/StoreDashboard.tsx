@@ -26,6 +26,7 @@ import { TooltipTop, TooltipBottom } from './Tooltip'
 import { Toast, type ToastNotification } from './Toast'
 import { dashboardService } from '../services/dashboardService'
 import { authService } from '../services/authService'
+import { signalrService } from '../services/signalrService'
 import type { AuthUser } from '../types/auth'
 import type { ApiStockroom } from '../types/stockroom'
 import type {
@@ -257,6 +258,84 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     sortOrder,
     debouncedSearch
   ])
+
+  // Listen for real-time asset scans over WebSockets / SignalR
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+
+    signalrService.connect().then(() => {
+      if (resolvedStockroomId) {
+        signalrService.joinStockroom(resolvedStockroomId)
+      }
+
+      unsubscribe = signalrService.onAssetScanned((data) => {
+        // If a specific stockroom is selected and does not match, ignore
+        if (resolvedStockroomId && data.stockroomId !== resolvedStockroomId) {
+          return
+        }
+
+        // 1. Update the Hero Card (Latest Asset Read)
+        setLatestRead({
+          assetId: data.asset.assetId,
+          assetTag: data.asset.assetTag,
+          serialNumber: data.asset.serialNumber,
+          makeModel: data.asset.makeModel,
+          assetType: '',
+          subAssetType: '',
+          assetDescription: data.asset.assetDescription,
+          stockroomName: data.stockroomName,
+          assetState: '',
+          serviceRequest: '',
+          rfidEpc: data.asset.rfidEpc,
+          move: data.asset.move,
+          movementDateTime: data.asset.movementDateTime
+        })
+
+        // 2. Update KPI Summary counters
+        setSummary((prev) =>
+          prev
+            ? {
+                ...prev,
+                totalTaggedAssets: data.stockroomSummary.totalTaggedAssets,
+                assetIssuance: data.stockroomSummary.assetIssuance,
+                availableAssets: data.stockroomSummary.availableAssets
+              }
+            : null
+        )
+
+        // 3. Prepend to Movement Rows at Row 1 and slice to preserve pagination length
+        setMovementRows((prevRows) => {
+          const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+          const remaining = prevRows.filter(
+            (r) => r.rfidEpc !== data.asset.rfidEpc || r.assetTag !== data.asset.assetTag
+          )
+
+          const newRow: StockroomMovementRow = {
+            assetId: data.asset.assetId,
+            movementDateTime: data.asset.movementDateTime,
+            assetTag: data.asset.assetTag,
+            serialNumber: data.asset.serialNumber,
+            makeModel: data.asset.makeModel,
+            assetDescription: data.asset.assetDescription,
+            assetType: '',
+            subAssetType: '',
+            assetState: '',
+            rfidEpc: data.asset.rfidEpc,
+            move: data.asset.move
+          }
+
+          return [newRow, ...remaining].slice(0, numericPageSize)
+        })
+      })
+    })
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+      if (resolvedStockroomId) {
+        signalrService.leaveStockroom(resolvedStockroomId)
+      }
+    }
+  }, [resolvedStockroomId, rowsPerPage])
 
   // Options for StoreFilter
   const stockRoomOptions: StoreItem[] = useMemo(() => {

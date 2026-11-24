@@ -15,6 +15,12 @@ export default defineConfig({
         target: 'http://172.20.204.134:5187',
         changeOrigin: true,
         secure: false,
+      },
+      '/hubs': {
+        target: 'http://172.20.204.134:5187',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
       }
     }
   }

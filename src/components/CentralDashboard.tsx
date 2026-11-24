@@ -15,6 +15,7 @@ import StoreAssetsTable, {
 } from './StoreAssetsTable'
 import { dashboardService } from '../services/dashboardService'
 import { authService } from '../services/authService'
+import { signalrService } from '../services/signalrService'
 import type { AuthUser } from '../types/auth'
 import type { ApiStockroom } from '../types/stockroom'
 import type {
@@ -198,6 +199,47 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
     debouncedSearch,
     resolvedStockroomId
   ])
+
+  // Listen for real-time stockroom updates over WebSockets / SignalR
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+
+    signalrService.connect().then(() => {
+      unsubscribe = signalrService.onStockroomUpdated((data) => {
+        // 1. Update the 4 KPI summary cards (TickerNumber animates smoothly)
+        setSummary({
+          totalStockRooms: data.globalSummary.totalStockRooms,
+          totalTaggedAssets: data.globalSummary.totalTaggedAssets,
+          assetIssuance: data.globalSummary.assetIssuance,
+          availableAssets: data.globalSummary.availableAssets
+        })
+
+        // 2. Prepend updated stockroom row to top of table (Row 1)
+        setTableRows((prevRows) => {
+          const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+          const remaining = prevRows.filter((row) => row.id !== String(data.stockroomId))
+
+          const updatedRow: StoreAssetRecord = {
+            id: String(data.stockroomId),
+            storeCode: `SR-${data.stockroomId}`,
+            storeName: data.stockroomName,
+            location: data.stockroomName,
+            keywords: data.stockroomName,
+            totalAssets: data.totalTaggedAssets,
+            totalOut: data.assetIssuance,
+            totalIn: data.availableAssets
+          }
+
+          // Prepend and slice to maintain exact page size
+          return [updatedRow, ...remaining].slice(0, numericPageSize)
+        })
+      })
+    })
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [rowsPerPage])
 
   // Memoize stock room options for dropdown
   const stockRoomOptions: StoreItem[] = useMemo(() => {
