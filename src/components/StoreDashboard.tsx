@@ -70,7 +70,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   const [selectedStore, setSelectedStore] = useState<string>(getInitialStore)
   const [apiStockrooms, setApiStockrooms] = useState<ApiStockroom[]>([])
-  const [currentTime, setCurrentTime] = useState<Date>(new Date())
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date())
 
   const [summary, setSummary] = useState<StockroomSummary | null>(null)
   const [latestRead, setLatestRead] = useState<LatestAssetRead | null>(null)
@@ -274,8 +274,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   // Current selected stock room name for display
   const currentStockroomName = useMemo(() => {
+    const summaryName = summary?.stockroomName
     if (selectedStore === 'all') {
-      return summary?.stockroomName || (isAdmin ? 'All Stock Rooms' : 'Stock Room')
+      return summaryName || (isAdmin ? 'All Stock Rooms' : 'Stock Room')
     }
     const found = stockRoomOptions.find(
       (s) =>
@@ -285,9 +286,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         s.name.toLowerCase() === selectedStore.toLowerCase()
     )
     if (found) return found.name
-    if (summary?.stockroomName) return summary.stockroomName
+    if (summaryName) return summaryName
     return isLoading ? 'Loading...' : 'Select Stock Room'
-  }, [selectedStore, stockRoomOptions, summary?.stockroomName, isLoading, isAdmin])
+  }, [selectedStore, stockRoomOptions, summary, isLoading, isAdmin])
 
   const kpiCards = [
     {

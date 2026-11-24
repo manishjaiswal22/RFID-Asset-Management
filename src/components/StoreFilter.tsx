@@ -14,7 +14,7 @@ export interface StoreItem {
   keywords?: string
 }
 
-export const DUMMY_STORES: StoreItem[] = [
+const DUMMY_STORES: StoreItem[] = [
   { id: 'all', storeCode: '', name: 'All Stock Rooms', location: '', keywords: 'all stock rooms' },
   ...DUMMY_STORE_RECORDS.map((s) => ({
     id: s.id,

@@ -77,7 +77,6 @@ export default function TickerNumber({ value, className = '' }: TickerNumberProp
   const strValue = typeof value === 'number' ? value.toLocaleString() : String(value ?? '0')
   const chars = strValue.split('')
   const totalDigits = chars.filter((c) => /^[0-9]$/.test(c)).length
-  let digitIndex = 0
 
   return (
     <span
@@ -87,7 +86,7 @@ export default function TickerNumber({ value, className = '' }: TickerNumberProp
       <span className="sr-only">{strValue}</span>
       {chars.map((char, idx) => {
         const isNum = /^[0-9]$/.test(char)
-        const currentDigitIndex = isNum ? digitIndex++ : 0
+        const currentDigitIndex = isNum ? chars.slice(0, idx).filter((c) => /^[0-9]$/.test(c)).length : 0
         // Key from right-to-left so existing digit positions remain mounted and animate smoothly
         const rightPos = chars.length - 1 - idx
         const key = `${char === '₹' ? 'curr' : char === ',' ? 'sep' : 'pos'}-${rightPos}`

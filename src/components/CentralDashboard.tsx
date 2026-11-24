@@ -53,7 +53,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
   })
   const [isLoading, setIsLoading] = useState(false)
   const [apiStockrooms, setApiStockrooms] = useState<ApiStockroom[]>([])
-  const [currentTime, setCurrentTime] = useState<Date>(new Date())
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date())
   // Always default to 'all' so returning to Central Dashboard shows all stock rooms
   const [selectedStore, setSelectedStore] = useState('all')
 
