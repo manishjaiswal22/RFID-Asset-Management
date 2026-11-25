@@ -18,6 +18,9 @@ export interface StockroomUpdatePayload {
   availableAssets: number
   lastActivityTime: string
   globalSummary: GlobalSummaryPayload
+  move?: 'IN' | 'OUT' | string
+  lastMove?: 'IN' | 'OUT' | string
+  action?: string
 }
 
 export interface AssetDetailPayload {
@@ -50,11 +53,73 @@ export interface AssetScannedPayload {
   asset: AssetDetailPayload
   stockroomSummary: StockroomSummaryPayload
   globalSummary?: GlobalSummaryPayload
+  move?: 'IN' | 'OUT' | string
+  lastMove?: 'IN' | 'OUT' | string
+  action?: string
 }
 
 class SignalRService {
   private connection: signalR.HubConnection | null = null
   private isConnecting = false
+  private statusListeners: Set<(isConnected: boolean) => void> = new Set()
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        console.info('SignalR: Browser came online, attempting reconnect...')
+        if (!this.isConnected()) {
+          this.connect().catch(() => {})
+        }
+      })
+
+      window.addEventListener('offline', () => {
+        console.warn('SignalR: Browser went offline.')
+        this.notifyStatusChange()
+      })
+    }
+  }
+
+  private notifyStatusChange(): void {
+    const connected = this.isConnected()
+    this.statusListeners.forEach((cb) => {
+      try {
+        cb(connected)
+      } catch (err) {
+        console.error('Error in SignalR status listener', err)
+      }
+    })
+  }
+
+  public isConnected(): boolean {
+    return this.connection?.state === signalR.HubConnectionState.Connected
+  }
+
+  public onConnectionChange(callback: (isConnected: boolean) => void): () => void {
+    this.statusListeners.add(callback)
+    callback(this.isConnected())
+    return () => {
+      this.statusListeners.delete(callback)
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (!this.isConnected() && authService.getToken()) {
+        console.info('SignalR: Attempting to reconnect...')
+        this.connect().catch(() => {})
+      }
+    }, 5000)
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
 
   private getHubUrl(): string {
     const envUrl = (
@@ -75,10 +140,12 @@ class SignalRService {
     const token = authService.getToken()
     if (!token) {
       console.warn('SignalR: No auth token found. Skipping connection.')
+      this.notifyStatusChange()
       return null
     }
 
     if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) {
+      this.notifyStatusChange()
       return this.connection
     }
 
@@ -87,6 +154,7 @@ class SignalRService {
     }
 
     this.isConnecting = true
+    this.notifyStatusChange()
 
     try {
       this.connection = new signalR.HubConnectionBuilder()
@@ -101,21 +169,29 @@ class SignalRService {
 
       this.connection.onreconnecting((error) => {
         console.warn('SignalR: Reconnecting...', error)
+        this.notifyStatusChange()
       })
 
       this.connection.onreconnected((connectionId) => {
         console.info('SignalR: Reconnected successfully. ConnectionId:', connectionId)
+        this.notifyStatusChange()
       })
 
       this.connection.onclose((error) => {
         console.warn('SignalR: Connection closed.', error)
+        this.notifyStatusChange()
+        this.scheduleReconnect()
       })
 
       await this.connection.start()
       console.info('SignalR: Connected to Dashboard Hub successfully.')
+      this.clearReconnectTimer()
+      this.notifyStatusChange()
       return this.connection
     } catch (err) {
       console.error('SignalR: Connection failed to start', err)
+      this.notifyStatusChange()
+      this.scheduleReconnect()
       return null
     } finally {
       this.isConnecting = false
@@ -123,6 +199,7 @@ class SignalRService {
   }
 
   public async disconnect(): Promise<void> {
+    this.clearReconnectTimer()
     if (this.connection) {
       try {
         await this.connection.stop()
@@ -131,6 +208,7 @@ class SignalRService {
         console.warn('SignalR: Error during disconnect', err)
       } finally {
         this.connection = null
+        this.notifyStatusChange()
       }
     }
   }

@@ -3,8 +3,11 @@ import { Building2, Search, ChevronDown, Check, X, Loader2 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS } from '../data/storesData'
 import { dashboardService } from '../services/dashboardService'
 import { authService } from '../services/authService'
+import { searchService } from '../services/searchService'
 import type { AuthUser } from '../types/auth'
 import { TooltipBottom } from './Tooltip'
+import { matchStockroomSearch } from '../utils/stockroomSearch'
+import { useDebounce } from '../utils/useDebounce'
 
 export interface StoreItem {
   id: string
@@ -51,10 +54,16 @@ export default function StoreFilter({
 
   const computedDefaultStore = defaultStore !== undefined ? defaultStore : (isAdmin ? 'all' : '')
   const [internalStore, setInternalStore] = useState(computedDefaultStore)
+  const [selectedStoreCache, setSelectedStoreCache] = useState<Record<string, StoreItem>>({})
   const [searchQuery, setSearchQuery] = useState('')
+  // Debounce search query by 250ms to prevent rapid keystroke queries & re-render thrashing
+  const debouncedSearch = useDebounce(searchQuery, 250)
   const [isOpen, setIsOpen] = useState(false)
   const [apiStores, setApiStores] = useState<StoreItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<StoreItem[] | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -120,12 +129,15 @@ export default function StoreFilter({
   }
 
   const currentStoreId = controlledStore !== undefined ? controlledStore : internalStore
-  const currentStore = stores.find((s) => isMatch(s, currentStoreId)) || stores[0] || {
-    id: isAdmin ? 'all' : '',
-    storeCode: '',
-    name: isAdmin ? 'All Stock Rooms' : 'Stock Room',
-    location: ''
-  }
+  const currentStore =
+    stores.find((s) => isMatch(s, currentStoreId)) ||
+    selectedStoreCache[currentStoreId] ||
+    stores[0] || {
+      id: isAdmin ? 'all' : '',
+      storeCode: '',
+      name: isAdmin ? 'All Stock Rooms' : 'Stock Room',
+      location: ''
+    }
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -138,8 +150,17 @@ export default function StoreFilter({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleSelect = (storeId: string) => {
+  const handleSelect = (storeOrId: StoreItem | string) => {
+    const storeId = typeof storeOrId === 'string' ? storeOrId : storeOrId.id
     if (!isAdmin && storeId === 'all') return
+
+    if (typeof storeOrId === 'object') {
+      setSelectedStoreCache((prev) => ({
+        ...prev,
+        [storeOrId.id]: storeOrId
+      }))
+    }
+
     if (controlledStore === undefined) {
       setInternalStore(storeId)
     }
@@ -150,39 +171,92 @@ export default function StoreFilter({
     }
   }
 
-  // Tokenized, normalized, and alias-aware search filter
-  const filteredStores = stores.filter((s) => {
-    if (s.id === 'all') return isAdmin
-    if (!searchQuery.trim()) return true
-    const rawQuery = searchQuery.trim().toLowerCase()
-    const cleanQuery = rawQuery.replace(/[^a-z0-9]/g, '')
-    const nameLower = s.name.toLowerCase()
-    const cleanName = nameLower.replace(/[^a-z0-9]/g, '')
-    const keywordsLower = (s.keywords || '').toLowerCase()
+  // Check if debounce is currently pending (user is actively typing)
+  const isDebouncing = searchQuery.trim() !== debouncedSearch.trim() && searchQuery.trim().length > 0
 
-    if (
-      nameLower.includes(rawQuery) ||
-      (cleanQuery && cleanName.includes(cleanQuery)) ||
-      keywordsLower.includes(rawQuery)
-    ) {
-      return true
+  // Live suggestions from GET /api/search/suggestions?q={q}&limit=10
+  useEffect(() => {
+    if (!isOpen || !debouncedSearch.trim()) {
+      setSuggestions(null)
+      setIsSearching(false)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      return
     }
 
-    const tokens = rawQuery.split(/[\s-]+/).filter(Boolean)
-    if (
-      tokens.length > 1 &&
-      tokens.every(
-        (t) =>
-          nameLower.includes(t) ||
-          cleanName.includes(t.replace(/[^a-z0-9]/g, '')) ||
-          keywordsLower.includes(t)
-      )
-    ) {
-      return true
+    const trimmed = debouncedSearch.trim()
+    setIsSearching(true)
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    let active = true
+
+    const fetchSuggestions = async () => {
+      try {
+        const existingStockrooms = stores.map((s) => ({
+          stockroomId: Number(s.id) || 0,
+          stockroomName: s.name
+        }))
+
+        const res = await searchService.getSuggestions(
+          trimmed,
+          10,
+          existingStockrooms,
+          controller.signal
+        )
+
+        if (!active) return
+
+        if (res && res.length > 0) {
+          const mapped: StoreItem[] = res.map((item) => ({
+            id: String(item.stockroomId),
+            storeCode: `SR-${item.stockroomId}`,
+            name: item.stockroomName,
+            location: item.stockroomName,
+            keywords: item.stockroomName
+          }))
+          setSuggestions(mapped)
+        } else {
+          setSuggestions([])
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError' && active) {
+          console.warn('StoreFilter: suggestions API failed, falling back to client filter', err)
+          setSuggestions(null)
+        }
+      } finally {
+        if (active) {
+          setIsSearching(false)
+        }
+      }
     }
 
-    return false
-  })
+    fetchSuggestions()
+
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [debouncedSearch, isOpen, stores])
+
+  // Display stores: use live suggestions if available, else fallback to client-side tokenized & alias-aware search
+  const displayStores = useMemo(() => {
+    if (suggestions && suggestions.length > 0) {
+      if (isAdmin && matchStockroomSearch('All Stock Rooms', debouncedSearch)) {
+        return [{ id: 'all', storeCode: '', name: 'All Stock Rooms', location: '' }, ...suggestions]
+      }
+      return suggestions
+    }
+
+    return stores.filter((s) => {
+      if (s.id === 'all') return isAdmin
+      return matchStockroomSearch(s.name, debouncedSearch, s.keywords, s.storeCode || s.id)
+    })
+  }, [suggestions, stores, isAdmin, debouncedSearch])
 
   return (
     <div ref={dropdownRef} className={`relative inline-block ${className}`}>
@@ -234,9 +308,21 @@ export default function StoreFilter({
                 placeholder="Search stock room name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-[#181818] rounded-2xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#00a8e7] focus:ring-1 focus:ring-[#00a8e7]/20 transition-all text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D]"
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white dark:bg-[#181818] rounded-2xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#00a8e7] focus:ring-1 focus:ring-[#00a8e7]/20 transition-all text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D]"
                 autoFocus
               />
+              {isSearching || isDebouncing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00a8e7] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              ) : searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -247,12 +333,12 @@ export default function StoreFilter({
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00a8e7]" />
                 <span>Loading stock rooms...</span>
               </div>
-            ) : filteredStores.length === 0 ? (
+            ) : displayStores.length === 0 ? (
               <p className="px-3 py-3 text-xs text-[#99958D] font-medium text-center">
                 No matching stock rooms found
               </p>
             ) : (
-              filteredStores.map((store) => {
+              displayStores.map((store) => {
                 const isSelected = isMatch(store, currentStore.id) || isMatch(store, currentStoreId)
                 return (
                   <button
@@ -260,7 +346,7 @@ export default function StoreFilter({
                     type="button"
                     role="option"
                     aria-selected={isSelected}
-                    onClick={() => handleSelect(store.id)}
+                    onClick={() => handleSelect(store)}
                     className={`w-full text-left px-3.5 py-2 text-xs flex items-center justify-between cursor-pointer transition-colors ${
                       isSelected
                         ? 'bg-[#00a8e7]/10 text-[#00a8e7] font-semibold'

@@ -19,6 +19,7 @@ import { exportToExcel } from '../utils/excelExport'
 import { stockroomService } from '../services/stockroomService'
 import { TooltipTop, TooltipBottom, TooltipLeft } from './Tooltip'
 import { Toast, type ToastNotification } from './Toast'
+import { useDebounce } from '../utils/useDebounce'
 import type {
   ApiStockroomMasterRecord,
   StockroomMasterSummary,
@@ -64,11 +65,16 @@ export const StoreMaster: React.FC = () => {
 
   // DataTable filtering, sorting & pagination
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Debounce stock room master search query by 300ms
+  const debouncedSearch = useDebounce(searchQuery, 300)
   const [sortField, setSortField] = useState<StockroomSortField>('STOCKROOM')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
+
+  const hasData = records.length > 0 && (pagination.totalRecords > 0 || records.length > 0)
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     setNotification({ type, message })
@@ -77,14 +83,10 @@ export const StoreMaster: React.FC = () => {
     }, 4500)
   }
 
-  // Debounce search query
+  // Reset to first page on debounced search change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-      setCurrentPage(1)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    setCurrentPage(1)
+  }, [debouncedSearch])
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -336,14 +338,17 @@ export const StoreMaster: React.FC = () => {
 
   // Export to Excel (.xlsx) using current table rows or fetching all
   const handleExportExcel = async () => {
-    if (!records || records.length === 0 || pagination.totalRecords === 0) {
+    if (!hasData) {
       showNotification('warning', 'No data to export')
       return
     }
+    setIsExportingExcel(true)
+    setExportProgress(20)
     try {
       // Fetch all records for export if currently paginated
       let exportRows = records
       if (pagination.totalRecords > records.length) {
+        setExportProgress(45)
         const fullData = await stockroomService.getStockrooms({
           page: 1,
           pageSize: pagination.totalRecords,
@@ -359,6 +364,7 @@ export const StoreMaster: React.FC = () => {
         return
       }
 
+      setExportProgress(75)
       const headers = ['Stock Room ID', 'Stock Room', 'Stockroom Engineer', 'Stockroom Lead', 'Status', 'Created Date']
       const rows = exportRows.map((r) => [
         r.stockroomId,
@@ -374,10 +380,16 @@ export const StoreMaster: React.FC = () => {
         `stock_room_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
         'Stock Rooms'
       )
+      setExportProgress(100)
       showNotification('success', `Exported ${exportRows.length} stock rooms to Excel.`)
     } catch (err) {
       console.error('Export failed:', err)
       showNotification('error', 'Failed to export to Excel.')
+    } finally {
+      setTimeout(() => {
+        setIsExportingExcel(false)
+        setExportProgress(0)
+      }, 500)
     }
   }
 
@@ -475,14 +487,52 @@ export const StoreMaster: React.FC = () => {
               </select>
             </div>
 
-            <TooltipBottom content="Export records to Excel (.xlsx)">
+            <TooltipBottom
+              content={
+                !hasData
+                  ? 'No data available to export'
+                  : isExportingExcel
+                  ? `Exporting... ${exportProgress}%`
+                  : 'Export records to Excel (.xlsx)'
+              }
+            >
               <button
                 type="button"
+                disabled={!hasData || isExportingExcel}
                 onClick={handleExportExcel}
-                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                className="relative overflow-hidden flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#00875A] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs select-none"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Export to Excel</span>
+                {/* Animated background progress fill inside the button itself */}
+                {isExportingExcel && (
+                  <div
+                    className="absolute inset-y-0 left-0 bg-[#006644] transition-all duration-200 ease-out z-0"
+                    style={{ width: `${exportProgress}%` }}
+                  />
+                )}
+
+                {/* Crisp bottom progress line */}
+                {isExportingExcel && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/25 z-0">
+                    <div
+                      className="h-full bg-white transition-all duration-200 ease-out"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  </div>
+                )}
+
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {isExportingExcel ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>Exporting... {exportProgress > 0 ? `${exportProgress}%` : ''}</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                      <span>Export to Excel</span>
+                    </>
+                  )}
+                </span>
               </button>
             </TooltipBottom>
           </div>
@@ -562,7 +612,6 @@ export const StoreMaster: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setSearchQuery('')
-                              setDebouncedSearch('')
                             }}
                             className="mt-1.5 text-xs text-[#00a8e7] hover:underline cursor-pointer"
                           >

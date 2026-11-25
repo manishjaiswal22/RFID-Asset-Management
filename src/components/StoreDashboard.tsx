@@ -17,13 +17,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Radio
+  Radio,
+  X
 } from 'lucide-react'
 import StoreFilter, { type StoreItem } from './StoreFilter'
 import TickerNumber from './TickerNumber'
-import { exportToExcel } from '../utils/excelExport'
+import { downloadExcelExport } from '../services/exportService'
+import { extractMoveFromJson, normalizeMove } from '../utils/moveUtils'
 import { TooltipTop, TooltipBottom } from './Tooltip'
 import { Toast, type ToastNotification } from './Toast'
+import ConnectionStatusPill from './ConnectionStatusPill'
+import { useDebounce } from '../utils/useDebounce'
 import { dashboardService } from '../services/dashboardService'
 import { authService } from '../services/authService'
 import { signalrService } from '../services/signalrService'
@@ -149,7 +153,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   // DataTable Filtering, Sorting & Pagination State
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Debounce movement records table search by 300ms
+  const debouncedSearch = useDebounce(searchQuery, 300)
   const [sortField, setSortField] = useState<SortField>('movementDateTime')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
@@ -183,14 +188,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     }
   }, [])
 
-  // Debounce search query
+  // Reset to first page when debounced search query changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-      setCurrentPage(1)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    setCurrentPage(1)
+  }, [debouncedSearch])
 
   // Fetch stockrooms for top dropdown
   useEffect(() => {
@@ -262,6 +263,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     return match?.stockroomId
   }, [selectedStore, apiStockrooms])
 
+  // Resolve selected stockroom's display name for export filename
+  const resolvedStockroomName = useMemo(() => {
+    if (!selectedStore || selectedStore === 'all') return undefined
+    const num = parseInt(selectedStore.replace(/^stock-/, ''), 10)
+    if (!isNaN(num)) {
+      const match = apiStockrooms.find((s) => s.stockroomId === num)
+      return match?.stockroomName
+    }
+    const match = apiStockrooms.find(
+      (s) => s.stockroomName.toLowerCase() === selectedStore.toLowerCase()
+    )
+    return match?.stockroomName
+  }, [selectedStore, apiStockrooms])
+
   // Fetch stockroom dashboard data (cards, latest read, movements) from API
   useEffect(() => {
     let mounted = true
@@ -321,6 +336,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           return
         }
 
+        // Extract move directly from payload (root move, asset.move, action, or status)
+        const moveDirection: 'IN' | 'OUT' =
+          extractMoveFromJson(data) ||
+          extractMoveFromJson(data.asset) ||
+          normalizeMove(data.asset?.move) ||
+          'IN'
+
         // 1. Update the Hero Card (Latest Asset Read)
         setLatestRead({
           assetId: data.asset.assetId,
@@ -334,12 +356,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           assetState: data.asset.assetState || '',
           serviceRequest: data.asset.serviceRequest || '',
           rfidEpc: data.asset.rfidEpc,
-          move: data.asset.move,
+          move: moveDirection,
           movementDateTime: data.asset.movementDateTime
         })
 
         // Always trigger 15s ambient shadow glow when a new WebSocket patch is received
-        triggerBlink(data.asset.move)
+        triggerBlink(moveDirection)
 
         // 2. Update KPI Summary counters
         setSummary((prev) => {
@@ -392,7 +414,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             subAssetType: data.asset.subAssetType || '',
             assetState: data.asset.assetState || '',
             rfidEpc: data.asset.rfidEpc,
-            move: data.asset.move
+            move: moveDirection
           }
 
           return [newRow, ...remaining].slice(0, numericPageSize)
@@ -754,6 +776,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   // Pagination calculations
   const totalRecords = pagination.totalRecords
+  const hasData = totalRecords > 0 || movementRows.length > 0
   const isAll = rowsPerPage === 'all'
   const effectiveLimit = isAll ? Math.max(totalRecords, 1) : rowsPerPage
   const totalPages = pagination.totalPages
@@ -805,39 +828,35 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     return pages
   }
 
-  // Export to Excel (.xlsx)
-  const handleExportExcel = () => {
-    if (!movementRows || movementRows.length === 0) {
-      showNotification('warning', 'No data to export')
-      return
+  // Export to Excel (.xlsx) via backend API (status=2)
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
+
+  const handleExportExcel = async () => {
+    if (!hasData) return
+    setIsExportingExcel(true)
+    setExportProgress(10)
+    try {
+      // Always pass the resolved stockroomId when a specific stock room is selected:
+      // - Admin + "All Stock Rooms" → no stockroomId (exports all)
+      // - Admin + specific stockroom → stockroomId
+      // - Normal stockroom user → stockroomId (from selected store / assigned stockroom)
+      const targetStockroomId =
+        selectedStore && selectedStore !== 'all' ? resolvedStockroomId : undefined
+
+      await downloadExcelExport(2, targetStockroomId, (percent) => {
+        setExportProgress(percent)
+      })
+      showNotification('success', 'Stock Room Dashboard exported to Excel successfully!')
+    } catch (err: any) {
+      console.warn('StoreDashboard: backend Excel export failed', err)
+      showNotification('error', err.message || 'Failed to export Excel file.')
+    } finally {
+      setTimeout(() => {
+        setIsExportingExcel(false)
+        setExportProgress(0)
+      }, 500)
     }
-    const headers = [
-      'Date-Time',
-      'Asset Tag',
-      'Serial No',
-      'Make / Model',
-      'Asset Description',
-      'Move',
-      'Stockroom'
-    ]
-    const rows = movementRows.map((r) => [
-      r.movementDateTime
-        ? r.movementDateTime.replace('T', ' ').slice(0, 19)
-        : '-',
-      r.assetTag,
-      r.serialNumber,
-      r.makeModel,
-      r.assetDescription || r.subAssetType || r.assetType,
-      r.move,
-      summary?.stockroomName || currentStockroomName
-    ])
-    exportToExcel(
-      headers,
-      rows,
-      `stockroom_movements_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      'Asset Movements'
-    )
-    showNotification('success', `Exported ${rows.length} asset movements to Excel.`)
   }
 
   const formatDateTime = (date: Date): string => {
@@ -913,11 +932,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {/* Live Status Pill */}
-            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#5D9273]/30 bg-[#5D9273]/10 dark:bg-[#5D9273]/20 text-[#2E7D32] dark:text-[#4ADE80] text-xs font-bold tracking-wide select-none">
-              <span className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-[#4ADE80] animate-pulse shrink-0" />
-              <span>Live</span>
-            </div>
+            {/* Live / WebSocket Connection Status Pill */}
+            <ConnectionStatusPill />
 
             {/* Time Pill */}
             <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
@@ -1369,19 +1385,35 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <div
             ref={toolbarRef}
             style={{ top: `${cardsBottomOffset}px` }}
-            className="px-3 py-1.5 sm:px-3.5 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 sticky z-25 rounded-t-2xl"
+            className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 sticky z-25 rounded-t-2xl"
           >
             {/* Left: Search input */}
-            <div className="flex items-center gap-2 flex-1 max-w-xs sm:max-w-sm">
+            <div className="flex items-center gap-2 flex-1 max-w-sm">
               <div className="relative w-full">
                 <Search className="w-3.5 h-3.5 text-[#99958D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search tag, serial, model, description, move..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full h-8 pl-8 pr-7 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('')
+                      setCurrentPage(1)
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white p-0.5 cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1405,14 +1437,52 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </select>
               </div>
 
-              <TooltipBottom content="Export filtered movements to Excel (.xlsx)">
+              <TooltipBottom
+                content={
+                  !hasData
+                    ? 'No data available to export'
+                    : isExportingExcel
+                    ? `Exporting... ${exportProgress}%`
+                    : 'Export Stock Room Dashboard to Excel (.xlsx)'
+                }
+              >
                 <button
                   type="button"
+                  disabled={!hasData || isExportingExcel}
                   onClick={handleExportExcel}
-                  className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  className="relative overflow-hidden flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#00875A] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs select-none"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Export to Excel</span>
+                  {/* Animated background progress fill inside the button itself */}
+                  {isExportingExcel && (
+                    <div
+                      className="absolute inset-y-0 left-0 bg-[#006644] transition-all duration-200 ease-out z-0"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  )}
+
+                  {/* Crisp bottom progress line */}
+                  {isExportingExcel && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/25 z-0">
+                      <div
+                        className="h-full bg-white transition-all duration-200 ease-out"
+                        style={{ width: `${exportProgress}%` }}
+                      />
+                    </div>
+                  )}
+
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    {isExportingExcel ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                        <span>Exporting... {exportProgress > 0 ? `${exportProgress}%` : ''}</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                        <span>Export to Excel</span>
+                      </>
+                    )}
+                  </span>
                 </button>
               </TooltipBottom>
             </div>
@@ -1525,7 +1595,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       item.movementDateTime
                     )
                     const isTopRow = idx === 0
-                    const isMoveOut = (item.move || '').trim().toUpperCase() === 'OUT'
+                    const itemMove = normalizeMove(item.move) || 'IN'
+                    const isMoveOut = itemMove === 'OUT'
                     const rowKey = item.rfidEpc || item.assetTag || String(item.assetId)
                     const isPromoted = recentlyPromotedKey === rowKey
 
@@ -1622,7 +1693,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             ) : (
                               <ArrowDownLeft className="w-3 h-3 stroke-[2.5]" />
                             )}
-                            <span>{item.move || 'IN'}</span>
+                            <span>{itemMove}</span>
                           </button>
                         </td>
                       </tr>

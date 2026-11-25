@@ -7,6 +7,8 @@ export interface StoreAssetRecord {
   totalAssets: number
   totalIn: number // Available Assets: (totalAssets - totalOut)
   totalOut: number // Asset Issuance
+  move?: 'IN' | 'OUT' | string
+  lastMove?: 'IN' | 'OUT' | string
 }
 
 export const DUMMY_STORE_RECORDS: StoreAssetRecord[] = [

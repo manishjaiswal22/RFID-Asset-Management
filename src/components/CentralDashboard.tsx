@@ -22,6 +22,9 @@ import type {
   CentralDashboardSummary,
   CentralDashboardPagination
 } from '../types/centralDashboard'
+import { extractMoveFromJson, normalizeMove } from '../utils/moveUtils'
+import ConnectionStatusPill from './ConnectionStatusPill'
+import { useDebounce } from '../utils/useDebounce'
 
 interface CentralDashboardProps {
   currentUser?: AuthUser | null
@@ -59,11 +62,22 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
   const [selectedStore, setSelectedStore] = useState('all')
 
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearchQuery)
+  // Debounce stock room table search query by 300ms to prevent rapid API requests
+  const debouncedSearch = useDebounce(searchQuery, 300)
   const [sortField, setSortField] = useState<SortField>('totalAssets')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [promotedStoreId, setPromotedStoreId] = useState<string | null>(null)
+  const [promotedMove, setPromotedMove] = useState<'IN' | 'OUT' | null>(null)
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup highlight timer on unmount
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    }
+  }, [])
 
   const cardsRef = useRef<HTMLDivElement>(null)
   const [cardsBottomOffset, setCardsBottomOffset] = useState<number>(210)
@@ -87,14 +101,10 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
     }
   }, [])
 
-  // Debounce search query to prevent rapid API requests
+  // Reset to first page when debounced search query changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-      setCurrentPage(1)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    setCurrentPage(1)
+  }, [debouncedSearch])
 
   const handleSearchChange = (q: string) => {
     setSearchQuery(q)
@@ -169,16 +179,21 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
         setSummary(res.summary)
         setPagination(res.pagination)
         setTableRows(
-          res.rows.map((r) => ({
-            id: String(r.stockroomId),
-            storeCode: `SR-${r.stockroomId}`,
-            storeName: r.stockroomName,
-            location: r.stockroomName,
-            keywords: r.stockroomName,
-            totalAssets: r.totalTaggedAssets,
-            totalOut: r.assetIssuance,
-            totalIn: r.availableAssets
-          }))
+          res.rows.map((r) => {
+            const rowMove = extractMoveFromJson(r)
+            return {
+              id: String(r.stockroomId),
+              storeCode: `SR-${r.stockroomId}`,
+              storeName: r.stockroomName,
+              location: r.stockroomName,
+              keywords: r.stockroomName,
+              totalAssets: r.totalTaggedAssets,
+              totalOut: r.assetIssuance,
+              totalIn: r.availableAssets,
+              move: rowMove,
+              lastMove: rowMove
+            }
+          })
         )
       })
       .catch((err) => {
@@ -203,10 +218,61 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
   // Listen for real-time stockroom updates over WebSockets / SignalR
   useEffect(() => {
     let unsubscribeStockroom: (() => void) | undefined
+    let unsubscribeScanned: (() => void) | undefined
     let unsubscribeRefreshed: (() => void) | undefined
 
     signalrService.connect().then(() => {
-      // 1. Live stockroom update (IN/OUT scan or count change)
+      // 1. Live Asset Scan (IN / OUT)
+      unsubscribeScanned = signalrService.onAssetScanned((data) => {
+        if (data.globalSummary) {
+          setSummary({
+            totalStockRooms: data.globalSummary.totalStockRooms,
+            totalTaggedAssets: data.globalSummary.totalTaggedAssets,
+            assetIssuance: data.globalSummary.assetIssuance,
+            availableAssets: data.globalSummary.availableAssets
+          })
+        }
+
+        const storeIdStr = String(data.stockroomId)
+        const moveDirection: 'IN' | 'OUT' =
+          extractMoveFromJson(data) ||
+          extractMoveFromJson(data.asset) ||
+          normalizeMove(data.asset?.move) ||
+          'IN'
+
+        setPromotedStoreId(storeIdStr)
+        setPromotedMove(moveDirection)
+
+        if (highlightTimerRef.current) {
+          clearTimeout(highlightTimerRef.current)
+        }
+        highlightTimerRef.current = setTimeout(() => {
+          setPromotedStoreId(null)
+        }, 4500)
+
+        setTableRows((prevRows) => {
+          const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+          const remaining = prevRows.filter((row) => row.id !== storeIdStr)
+          const existing = prevRows.find((row) => row.id === storeIdStr)
+
+          const updatedRow: StoreAssetRecord = {
+            id: storeIdStr,
+            storeCode: existing?.storeCode || `SR-${data.stockroomId}`,
+            storeName: data.stockroomName || existing?.storeName || `Stockroom ${data.stockroomId}`,
+            location: data.stockroomName || existing?.location || '',
+            keywords: existing?.keywords || data.stockroomName,
+            totalAssets: data.stockroomSummary?.totalTaggedAssets ?? existing?.totalAssets ?? 0,
+            totalOut: data.stockroomSummary?.assetIssuance ?? existing?.totalOut ?? 0,
+            totalIn: data.stockroomSummary?.availableAssets ?? existing?.totalIn ?? 0,
+            move: moveDirection,
+            lastMove: moveDirection
+          }
+
+          return [updatedRow, ...remaining].slice(0, numericPageSize)
+        })
+      })
+
+      // 2. Live stockroom update (IN/OUT scan or count change)
       unsubscribeStockroom = signalrService.onStockroomUpdated((data) => {
         setSummary({
           totalStockRooms: data.globalSummary.totalStockRooms,
@@ -215,26 +281,47 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
           availableAssets: data.globalSummary.availableAssets
         })
 
+        const storeIdStr = String(data.stockroomId)
+
         setTableRows((prevRows) => {
           const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
-          const remaining = prevRows.filter((row) => row.id !== String(data.stockroomId))
+          const remaining = prevRows.filter((row) => row.id !== storeIdStr)
+          const existing = prevRows.find((row) => row.id === storeIdStr)
+
+          const moveDirection: 'IN' | 'OUT' =
+            extractMoveFromJson(data, existing) ||
+            (existing && typeof data.assetIssuance === 'number' && data.assetIssuance > existing.totalOut
+              ? 'OUT'
+              : 'IN')
+
+          setPromotedStoreId(storeIdStr)
+          setPromotedMove(moveDirection)
+
+          if (highlightTimerRef.current) {
+            clearTimeout(highlightTimerRef.current)
+          }
+          highlightTimerRef.current = setTimeout(() => {
+            setPromotedStoreId(null)
+          }, 4500)
 
           const updatedRow: StoreAssetRecord = {
-            id: String(data.stockroomId),
-            storeCode: `SR-${data.stockroomId}`,
+            id: storeIdStr,
+            storeCode: existing?.storeCode || `SR-${data.stockroomId}`,
             storeName: data.stockroomName,
             location: data.stockroomName,
             keywords: data.stockroomName,
             totalAssets: data.totalTaggedAssets,
             totalOut: data.assetIssuance,
-            totalIn: data.availableAssets
+            totalIn: data.availableAssets,
+            move: moveDirection,
+            lastMove: moveDirection
           }
 
           return [updatedRow, ...remaining].slice(0, numericPageSize)
         })
       })
 
-      // 2. Live rollback / deletion detected (Undo)
+      // 3. Live rollback / deletion detected (Undo)
       unsubscribeRefreshed = signalrService.onDashboardRefreshed((data) => {
         if (data?.globalSummary) {
           setSummary({
@@ -248,6 +335,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
     })
 
     return () => {
+      if (unsubscribeScanned) unsubscribeScanned()
       if (unsubscribeStockroom) unsubscribeStockroom()
       if (unsubscribeRefreshed) unsubscribeRefreshed()
     }
@@ -386,11 +474,8 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {/* Live Status Pill */}
-            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#5D9273]/30 bg-[#5D9273]/10 dark:bg-[#5D9273]/20 text-[#2E7D32] dark:text-[#4ADE80] text-xs font-bold tracking-wide select-none">
-              <span className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-[#4ADE80] animate-pulse shrink-0" />
-              <span>Live</span>
-            </div>
+            {/* Live / WebSocket Connection Status Pill */}
+            <ConnectionStatusPill />
 
             {/* Time Pill */}
             <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
@@ -496,6 +581,9 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
           }}
           serverCurrentPage={currentPage}
           onPageChange={(p) => setCurrentPage(p)}
+          promotedStoreId={promotedStoreId}
+          promotedMove={promotedMove}
+          isAdmin={isAdmin}
           className="w-full flex flex-col"
         />
       </div>

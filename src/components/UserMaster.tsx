@@ -28,6 +28,7 @@ import { exportToExcel } from '../utils/excelExport'
 import { userService } from '../services/userService'
 import { authService } from '../services/authService'
 import { dashboardService } from '../services/dashboardService'
+import { searchService } from '../services/searchService'
 import { TooltipTop, TooltipBottom, TooltipLeft } from './Tooltip'
 import { Toast, type ToastNotification } from './Toast'
 import type {
@@ -39,6 +40,9 @@ import type {
   UpdateUserPayload
 } from '../types/userMaster'
 import type { ApiStockroom } from '../types/stockroom'
+import { filterStockrooms } from '../utils/stockroomSearch'
+import { DUMMY_STORE_RECORDS } from '../data/storesData'
+import { useDebounce } from '../utils/useDebounce'
 
 export type { ApiUserRecord as UserMasterRecord }
 
@@ -79,6 +83,14 @@ export const UserMaster: React.FC = () => {
   // Searchable stock room dropdown state in modal
   const [isStockroomDropdownOpen, setIsStockroomDropdownOpen] = useState(false)
   const [stockroomFilterQuery, setStockroomFilterQuery] = useState('')
+  // Debounce modal stock room filter to prevent typing freeze & duplicate queries
+  const debouncedStockroomFilter = useDebounce(stockroomFilterQuery, 250)
+  const isDebouncingStockrooms =
+    stockroomFilterQuery.trim() !== debouncedStockroomFilter.trim() &&
+    stockroomFilterQuery.trim().length > 0
+  const [stockroomSuggestions, setStockroomSuggestions] = useState<ApiStockroom[] | null>(null)
+  const [isSearchingStockrooms, setIsSearchingStockrooms] = useState(false)
+  const stockroomAbortControllerRef = useRef<AbortController | null>(null)
   const stockroomDropdownRef = useRef<HTMLDivElement>(null)
 
   // Copied password state for quick feedback
@@ -99,11 +111,16 @@ export const UserMaster: React.FC = () => {
 
   // DataTable filtering, sorting & pagination
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Debounce search query to prevent excessive API requests
+  const debouncedSearch = useDebounce(searchQuery, 300)
   const [sortField, setSortField] = useState<UserSortField>('USER_NAME')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
+
+  const hasData = records.length > 0 && (pagination.totalRecords > 0 || records.length > 0)
 
   const showNotification = useCallback((type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     setNotification({ type, message })
@@ -112,14 +129,10 @@ export const UserMaster: React.FC = () => {
     }, 4500)
   }, [])
 
-  // Debounce search query to prevent excessive API requests
+  // Reset pagination on search query change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
-      setCurrentPage(1)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    setCurrentPage(1)
+  }, [debouncedSearch])
 
   // Prevent background scrolling when modal or delete confirmation is open
   useEffect(() => {
@@ -136,12 +149,68 @@ export const UserMaster: React.FC = () => {
     }
   }, [isModalOpen, deletingUser])
 
-  // Filter stockrooms for searchable dropdown
+  // Live suggestions from GET /api/search/suggestions?q={q}&limit=10 using debounced query
+  useEffect(() => {
+    if (!isStockroomDropdownOpen || !debouncedStockroomFilter.trim()) {
+      setStockroomSuggestions(null)
+      setIsSearchingStockrooms(false)
+      if (stockroomAbortControllerRef.current) {
+        stockroomAbortControllerRef.current.abort()
+      }
+      return
+    }
+
+    const trimmed = debouncedStockroomFilter.trim()
+    setIsSearchingStockrooms(true)
+
+    if (stockroomAbortControllerRef.current) {
+      stockroomAbortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    stockroomAbortControllerRef.current = controller
+    let active = true
+
+    const fetchSuggestions = async () => {
+      try {
+        const res = await searchService.getSuggestions(
+          trimmed,
+          10,
+          stockrooms,
+          controller.signal
+        )
+        if (!active) return
+        if (res && res.length > 0) {
+          setStockroomSuggestions(res)
+        } else {
+          setStockroomSuggestions(null)
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError' && active) {
+          console.warn('UserMaster: suggestions API failed, falling back to client filter', err)
+          setStockroomSuggestions(null)
+        }
+      } finally {
+        if (active) {
+          setIsSearchingStockrooms(false)
+        }
+      }
+    }
+
+    fetchSuggestions()
+
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [debouncedStockroomFilter, isStockroomDropdownOpen, stockrooms])
+
+  // Filter stockrooms for searchable dropdown: use suggestions if available, else client-side tokenized & alias search
   const filteredStockrooms = useMemo(() => {
-    if (!stockroomFilterQuery.trim()) return stockrooms
-    const q = stockroomFilterQuery.toLowerCase()
-    return stockrooms.filter((s) => s.stockroomName.toLowerCase().includes(q))
-  }, [stockrooms, stockroomFilterQuery])
+    if (stockroomSuggestions && stockroomSuggestions.length > 0) {
+      return stockroomSuggestions
+    }
+    return filterStockrooms(stockrooms, debouncedStockroomFilter)
+  }, [stockroomSuggestions, stockrooms, debouncedStockroomFilter])
 
   // Click outside to close searchable stockroom dropdown
   useEffect(() => {
@@ -159,16 +228,38 @@ export const UserMaster: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isStockroomDropdownOpen])
 
-  // Fetch stockrooms for dropdown once on mount
+  // Fetch stockrooms for dropdown once on mount (with dummy fallback)
   useEffect(() => {
+    let mounted = true
     dashboardService
       .getStockrooms()
       .then((data) => {
-        if (data?.length) setStockrooms(data)
+        if (!mounted) return
+        if (data?.length) {
+          setStockrooms(data)
+        } else {
+          setStockrooms(
+            DUMMY_STORE_RECORDS.map((d) => ({
+              stockroomId: parseInt(d.id.replace('stock-', ''), 10) || 1,
+              stockroomName: d.storeName
+            }))
+          )
+        }
       })
       .catch((err) => {
-        console.warn('Could not load stockrooms for User Master modal:', err)
+        if (!mounted) return
+        console.warn('Could not load stockrooms for User Master modal, falling back to dummy stores:', err)
+        setStockrooms(
+          DUMMY_STORE_RECORDS.map((d) => ({
+            stockroomId: parseInt(d.id.replace('stock-', ''), 10) || 1,
+            stockroomName: d.storeName
+          }))
+        )
       })
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Fetch users from API (GET /api/users)
@@ -488,26 +579,36 @@ export const UserMaster: React.FC = () => {
 
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
-    if (!records || records.length === 0) {
+    if (!hasData) {
       showNotification('warning', 'No data to export')
       return
     }
-    const headers = ['User Name', 'User Type', 'Stock Room', 'Email', 'Contact Number', 'Status']
-    const rows = records.map((r) => [
-      r.userName,
-      r.userType || '-',
-      r.stockroomName || '-',
-      r.email || '-',
-      r.contactNumber || '-',
-      r.status
-    ])
-    exportToExcel(
-      headers,
-      rows,
-      `user_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      'Users'
-    )
-    showNotification('success', `Exported ${records.length} users to Excel.`)
+    setIsExportingExcel(true)
+    setExportProgress(25)
+    setTimeout(() => {
+      setExportProgress(75)
+      const headers = ['User Name', 'User Type', 'Stock Room', 'Email', 'Contact Number', 'Status']
+      const rows = records.map((r) => [
+        r.userName,
+        r.userType || '-',
+        r.stockroomName || '-',
+        r.email || '-',
+        r.contactNumber || '-',
+        r.status
+      ])
+      exportToExcel(
+        headers,
+        rows,
+        `user_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        'Users'
+      )
+      setExportProgress(100)
+      showNotification('success', `Exported ${records.length} users to Excel.`)
+      setTimeout(() => {
+        setIsExportingExcel(false)
+        setExportProgress(0)
+      }, 500)
+    }, 200)
   }
 
   return (
@@ -553,22 +654,40 @@ export const UserMaster: React.FC = () => {
 
       {/* Inserted Records DataTable Card */}
       <div className="w-full flex-1 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs flex flex-col overflow-hidden">
-        {/* Table Toolbar */}
-        <div className="p-3 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
-          {/* Search Box */}
-          <div className="relative w-full sm:w-80">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search username, email, contact, stockroom..."
-              className="w-full h-8 bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl pl-8 pr-3 text-xs text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] dark:placeholder-[#737373] focus:outline-hidden focus:ring-2 focus:ring-[#171717]/20 dark:focus:ring-white/20 transition-all"
-            />
+        {/* Table Toolbar Header */}
+        <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+          {/* Left: Search Input */}
+          <div className="flex items-center gap-2 flex-1 max-w-sm">
+            <div className="relative w-full">
+              <Search className="w-3.5 h-3.5 text-[#99958D] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search username, email, contact, stockroom..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-full h-8 pl-8 pr-7 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-end sm:self-auto">
-            {/* Rows Per Page Selector */}
+          {/* Right: Rows Selector and Export Button */}
+          <div className="flex items-center gap-2 justify-between sm:justify-end shrink-0">
             <div className="flex items-center gap-1.5 text-xs text-[#666666] dark:text-[#A0A0A0]">
               <span>Rows:</span>
               <select
@@ -578,7 +697,7 @@ export const UserMaster: React.FC = () => {
                   setRowsPerPage(val)
                   setCurrentPage(1)
                 }}
-                className="h-8 bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl px-2.5 text-xs text-[#171717] dark:text-[#EDEDED] focus:outline-hidden cursor-pointer"
+                className="h-8 px-2 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer focus:border-[#1D63ED]"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -588,14 +707,52 @@ export const UserMaster: React.FC = () => {
             </div>
 
             {/* Export to Excel Button */}
-            <TooltipBottom content="Export filtered records to Excel (.xlsx)">
+            <TooltipBottom
+              content={
+                !hasData
+                  ? 'No data available to export'
+                  : isExportingExcel
+                  ? `Exporting... ${exportProgress}%`
+                  : 'Export records to Excel (.xlsx)'
+              }
+            >
               <button
                 type="button"
+                disabled={!hasData || isExportingExcel}
                 onClick={handleExportExcel}
-                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                className="relative overflow-hidden flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#00875A] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs select-none"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Export to Excel</span>
+                {/* Animated background progress fill inside the button itself */}
+                {isExportingExcel && (
+                  <div
+                    className="absolute inset-y-0 left-0 bg-[#006644] transition-all duration-200 ease-out z-0"
+                    style={{ width: `${exportProgress}%` }}
+                  />
+                )}
+
+                {/* Crisp bottom progress line */}
+                {isExportingExcel && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/25 z-0">
+                    <div
+                      className="h-full bg-white transition-all duration-200 ease-out"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  </div>
+                )}
+
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {isExportingExcel ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>Exporting... {exportProgress > 0 ? `${exportProgress}%` : ''}</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                      <span>Export to Excel</span>
+                    </>
+                  )}
+                </span>
               </button>
             </TooltipBottom>
           </div>
@@ -696,7 +853,6 @@ export const UserMaster: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setSearchQuery('')
-                              setDebouncedSearch('')
                             }}
                             className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
                           >
@@ -1099,19 +1255,26 @@ export const UserMaster: React.FC = () => {
                       }`}
                     >
                       <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#99958D] dark:text-[#737373] pointer-events-none" />
-                      <span
-                        className={`truncate ${
-                          stockroomId && stockrooms.find((s) => s.stockroomId === stockroomId)
-                            ? 'text-[#171717] dark:text-[#EDEDED] font-semibold'
-                            : 'text-[#99958D] dark:text-[#737373]'
-                        }`}
-                      >
-                        {userType === 'ADMIN'
-                          ? 'Not Applicable (Admin)'
-                          : stockroomId && stockrooms.find((s) => s.stockroomId === stockroomId)
-                          ? stockrooms.find((s) => s.stockroomId === stockroomId)?.stockroomName
-                          : 'Select Stock Room...'}
-                      </span>
+                      {(() => {
+                        const selectedStockroom = stockrooms.find(
+                          (s) => Number(s.stockroomId) === Number(stockroomId)
+                        )
+                        return (
+                          <span
+                            className={`truncate ${
+                              selectedStockroom
+                                ? 'text-[#171717] dark:text-[#EDEDED] font-semibold'
+                                : 'text-[#99958D] dark:text-[#737373]'
+                            }`}
+                          >
+                            {userType === 'ADMIN'
+                              ? 'Not Applicable (Admin)'
+                              : selectedStockroom
+                              ? selectedStockroom.stockroomName
+                              : 'Select Stock Room...'}
+                          </span>
+                        )
+                      })()}
                       <ChevronDown
                         className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#99958D] transition-transform duration-200 pointer-events-none ${
                           isStockroomDropdownOpen ? 'rotate-180' : ''
@@ -1149,38 +1312,47 @@ export const UserMaster: React.FC = () => {
                           <input
                             type="text"
                             autoFocus
-                            placeholder="Search stock room..."
+                            placeholder="Search stock room name..."
                             value={stockroomFilterQuery}
                             onChange={(e) => setStockroomFilterQuery(e.target.value)}
                             className="w-full h-8 pl-8 pr-7 text-xs bg-white dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#333333] rounded-xl text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] focus:outline-hidden focus:border-[#171717] dark:focus:border-white transition-colors"
                           />
-                          {stockroomFilterQuery && (
+                          {isSearchingStockrooms || isDebouncingStockrooms ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#99958D] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          ) : stockroomFilterQuery ? (
                             <button
                               type="button"
                               onClick={() => setStockroomFilterQuery('')}
                               className="absolute right-2 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white p-0.5 cursor-pointer"
+                              title="Clear search"
                             >
                               <X className="w-3 h-3" />
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       </div>
 
                       {/* Stockroom List */}
                       <div className="max-h-52 overflow-y-auto p-1.5 space-y-0.5 [scrollbar-width:thin]">
                         {filteredStockrooms.length === 0 ? (
-                          <div className="py-4 px-3 text-center text-xs text-[#99958D]">
-                            No stock rooms found matching "{stockroomFilterQuery}"
+                          <div className="py-4 px-3 text-center text-xs text-[#99958D] font-medium">
+                            No matching stock rooms found
                           </div>
                         ) : (
                           filteredStockrooms.map((s) => {
-                            const isSelected = s.stockroomId === stockroomId
+                            const isSelected = Number(s.stockroomId) === Number(stockroomId)
                             return (
                               <button
                                 key={s.stockroomId}
                                 type="button"
                                 onClick={() => {
                                   setStockroomId(s.stockroomId)
+                                  setStockrooms((prev) => {
+                                    if (!prev.some((item) => Number(item.stockroomId) === Number(s.stockroomId))) {
+                                      return [...prev, s]
+                                    }
+                                    return prev
+                                  })
                                   setIsStockroomDropdownOpen(false)
                                   setStockroomFilterQuery('')
                                   if (errors.stockroomId) {

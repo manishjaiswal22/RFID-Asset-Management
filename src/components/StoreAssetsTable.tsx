@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import {
   Search,
   Building2,
@@ -14,8 +14,11 @@ import {
 } from 'lucide-react'
 import { DUMMY_STORE_RECORDS, type StoreAssetRecord } from '../data/storesData'
 import { exportToExcel } from '../utils/excelExport'
+import { downloadExcelExport } from '../services/exportService'
+import { normalizeMove } from '../utils/moveUtils'
 import { TooltipTop, TooltipBottom } from './Tooltip'
 import { Toast, type ToastNotification } from './Toast'
+import { useDebounce } from '../utils/useDebounce'
 
 export type { StoreAssetRecord }
 export { DUMMY_STORE_RECORDS }
@@ -43,6 +46,11 @@ interface StoreAssetsTableProps {
   onRowsPerPageChange?: (size: number | 'all') => void
   serverCurrentPage?: number
   onPageChange?: (page: number) => void
+  promotedStoreId?: string | null
+  promotedMove?: 'IN' | 'OUT' | null
+  isAdmin?: boolean
+  onExportExcel?: () => Promise<void> | void
+  isExporting?: boolean
 }
 
 export default function StoreAssetsTable({
@@ -64,9 +72,16 @@ export default function StoreAssetsTable({
   serverRowsPerPage,
   onRowsPerPageChange,
   serverCurrentPage,
-  onPageChange
+  onPageChange,
+  promotedStoreId,
+  promotedMove,
+  isAdmin = true,
+  onExportExcel,
+  isExporting: propIsExporting
 }: StoreAssetsTableProps) {
   const [internalSearchQuery, setInternalSearchQuery] = useState('')
+  // Debounce internal search for standalone / client-side filtering mode
+  const debouncedInternalSearch = useDebounce(internalSearchQuery, 250)
   const [internalSortField, setInternalSortField] = useState<SortField>('totalAssets')
   const [internalSortOrder, setInternalSortOrder] = useState<SortOrder>('desc')
   const [internalRowsPerPage, setInternalRowsPerPage] = useState<number | 'all'>(10)
@@ -92,6 +107,7 @@ export default function StoreAssetsTable({
   }, [])
 
   const searchQuery = isServerSide ? (serverSearchQuery ?? '') : internalSearchQuery
+  const effectiveFilterQuery = isServerSide ? (serverSearchQuery ?? '') : debouncedInternalSearch
   const sortField = isServerSide ? (serverSortField ?? 'totalAssets') : internalSortField
   const sortOrder = isServerSide ? (serverSortOrder ?? 'desc') : internalSortOrder
   const rowsPerPage = isServerSide ? (serverRowsPerPage ?? 10) : internalRowsPerPage
@@ -154,8 +170,8 @@ export default function StoreAssetsTable({
         }
 
         // Filter by text search query
-        if (!searchQuery.trim()) return true
-        const rawQuery = searchQuery.trim().toLowerCase()
+        if (!effectiveFilterQuery.trim()) return true
+        const rawQuery = effectiveFilterQuery.trim().toLowerCase()
         const cleanQuery = rawQuery.replace(/[^a-z0-9]/g, '')
 
         const nameLower = item.storeName.toLowerCase()
@@ -224,7 +240,7 @@ export default function StoreAssetsTable({
 
         return 0
       })
-  }, [activeStores, selectedStoreId, searchQuery, sortField, sortOrder])
+  }, [activeStores, selectedStoreId, effectiveFilterQuery, sortField, sortOrder])
 
   // Pagination
   const totalRecords = isServerSide
@@ -266,26 +282,191 @@ export default function StoreAssetsTable({
     return pages
   }
 
-  const handleExportExcel = () => {
-    const recordsToExport = isServerSide ? activeStores : filteredAndSortedRecords
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  const prevRowPositionsRef = useRef<Map<string, number>>(new Map())
+  const isInitialTableRender = useRef(true)
+  const skipNextAnimationRef = useRef(false)
+
+  // Skip table slide animation when changing page, sorting, search or rowsPerPage
+  useEffect(() => {
+    skipNextAnimationRef.current = true
+  }, [currentPage, sortField, sortOrder, searchQuery, rowsPerPage])
+
+  // FLIP (First, Last, Invert, Play) animation for table rows sliding to top
+  useLayoutEffect(() => {
+    const tbody = tbodyRef.current
+    if (!tbody) return
+
+    const rows = Array.from(
+      tbody.querySelectorAll<HTMLTableRowElement>('tr[data-row-key]')
+    )
+
+    if (isInitialTableRender.current || skipNextAnimationRef.current) {
+      isInitialTableRender.current = false
+      skipNextAnimationRef.current = false
+      prevRowPositionsRef.current.clear()
+      rows.forEach((tr) => {
+        const key = tr.getAttribute('data-row-key')
+        if (key) {
+          prevRowPositionsRef.current.set(key, tr.getBoundingClientRect().top)
+        }
+      })
+      return
+    }
+
+    const prevPositions = prevRowPositionsRef.current
+    const animations: {
+      tr: HTMLTableRowElement
+      deltaY: number
+      isPromoted: boolean
+    }[] = []
+
+    rows.forEach((tr) => {
+      const key = tr.getAttribute('data-row-key')
+      if (!key) return
+
+      const newTop = tr.getBoundingClientRect().top
+      const oldTop = prevPositions.get(key)
+
+      if (oldTop !== undefined) {
+        const deltaY = oldTop - newTop
+        if (Math.abs(deltaY) > 1) {
+          const isPromoted = deltaY > 0 && tr.getAttribute('data-row-index') === '0'
+          animations.push({ tr, deltaY, isPromoted })
+        }
+      } else {
+        if (tr.getAttribute('data-row-index') === '0') {
+          const rowHeight = tr.getBoundingClientRect().height || 42
+          animations.push({ tr, deltaY: -rowHeight, isPromoted: true })
+        }
+      }
+    })
+
+    prevRowPositionsRef.current.clear()
+    rows.forEach((tr) => {
+      const key = tr.getAttribute('data-row-key')
+      if (key) {
+        prevRowPositionsRef.current.set(key, tr.getBoundingClientRect().top)
+      }
+    })
+
+    if (animations.length === 0) return
+
+    // 1. INVERT
+    animations.forEach(({ tr, deltaY, isPromoted }) => {
+      tr.style.transform = `translateY(${deltaY}px)`
+      tr.style.transition = 'none'
+      if (isPromoted) {
+        tr.style.position = 'relative'
+        tr.style.zIndex = '30'
+        tr.classList.add('row-sliding-promoted')
+      } else {
+        tr.style.position = 'relative'
+        tr.style.zIndex = '1'
+      }
+    })
+
+    void tbody.offsetHeight
+
+    // 2. PLAY
+    const rafId = requestAnimationFrame(() => {
+      animations.forEach(({ tr, isPromoted }) => {
+        if (isPromoted) {
+          tr.style.transition =
+            'transform 650ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 650ms ease'
+        } else {
+          tr.style.transition = 'transform 550ms cubic-bezier(0.16, 1, 0.3, 1)'
+        }
+        tr.style.transform = 'translateY(0px)'
+      })
+    })
+
+    // 3. CLEAN UP
+    const cleanupTimer = setTimeout(() => {
+      animations.forEach(({ tr }) => {
+        tr.style.transform = ''
+        tr.style.transition = ''
+        tr.style.position = ''
+        tr.style.zIndex = ''
+        tr.classList.remove('row-sliding-promoted')
+      })
+    }, 700)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      clearTimeout(cleanupTimer)
+    }
+  }, [recordsToDisplay])
+
+  const [internalIsExporting, setInternalIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
+  const isExporting = propIsExporting ?? internalIsExporting
+
+  const hasData = isServerSide
+    ? (totalRecordsCount !== undefined ? totalRecordsCount > 0 : (storesData && storesData.length > 0))
+    : (filteredAndSortedRecords && filteredAndSortedRecords.length > 0)
+
+  const handleExportExcel = async () => {
+    if (!hasData) return
+
+    if (onExportExcel) {
+      await onExportExcel()
+      return
+    }
+
+    if (isServerSide) {
+      if (!isAdmin) {
+        showNotification('error', 'You are not authorized to export this data.')
+        return
+      }
+      setInternalIsExporting(true)
+      setExportProgress(10)
+      try {
+        await downloadExcelExport(1, null, (percent) => {
+          setExportProgress(percent)
+        })
+        showNotification('success', 'Central Dashboard exported to Excel successfully!')
+      } catch (err: any) {
+        console.warn('CentralDashboard: backend Excel export failed', err)
+        showNotification('error', err.message || 'Failed to export Excel file.')
+      } finally {
+        setTimeout(() => {
+          setInternalIsExporting(false)
+          setExportProgress(0)
+        }, 500)
+      }
+      return
+    }
+
+    const recordsToExport = activeStores
     if (!recordsToExport || recordsToExport.length === 0) {
       showNotification('warning', 'No data to export')
       return
     }
-    const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
-    const rows = recordsToExport.map((r) => [
-      r.storeName,
-      r.totalAssets,
-      r.totalOut,
-      r.totalAssets - r.totalOut
-    ])
-    exportToExcel(
-      headers,
-      rows,
-      `stock_room_assets_${new Date().toISOString().slice(0, 10)}.xlsx`,
-      'Stock Rooms'
-    )
-    showNotification('success', `Exported ${rows.length} stock rooms to Excel.`)
+    setInternalIsExporting(true)
+    setExportProgress(25)
+    setTimeout(() => {
+      setExportProgress(75)
+      const headers = ['Stock Room', 'Total Tagged Assets', 'Asset Issuance', 'Available Assets']
+      const rows = recordsToExport.map((r) => [
+        r.storeName,
+        r.totalAssets,
+        r.totalOut,
+        r.totalAssets - r.totalOut
+      ])
+      exportToExcel(
+        headers,
+        rows,
+        `stock_room_assets_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        'Stock Rooms'
+      )
+      setExportProgress(100)
+      showNotification('success', `Exported ${rows.length} stock rooms to Excel.`)
+      setTimeout(() => {
+        setInternalIsExporting(false)
+        setExportProgress(0)
+      }, 500)
+    }, 200)
   }
 
   return (
@@ -313,8 +494,18 @@ export default function StoreAssetsTable({
               placeholder="Search stock room, tagged assets, issuance, available..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-8 pr-2.5 py-1 text-xs bg-white dark:bg-[#181818] rounded-2xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
+              className="w-full h-8 pl-8 pr-7 text-xs bg-white dark:bg-[#181818] rounded-xl border border-[#EAE7DF] dark:border-[#333333] outline-none focus:border-[#1D63ED] focus:ring-1 focus:ring-[#1D63ED]/20 text-[#171717] dark:text-[#EDEDED] placeholder-[#99958D] transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#99958D] hover:text-[#171717] dark:hover:text-white p-0.5 cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
           {/* Active Filter Indicator Tag */}
@@ -358,13 +549,54 @@ export default function StoreAssetsTable({
             </select>
           </div>
 
-          <TooltipBottom content="Export filtered records to Excel (.xlsx)">
+          <TooltipBottom
+            content={
+              !isAdmin
+                ? 'Admin access required to export'
+                : !hasData
+                ? 'No data available to export'
+                : isExporting
+                ? `Exporting... ${exportProgress}%`
+                : 'Export Central Dashboard to Excel (.xlsx)'
+            }
+          >
             <button
+              type="button"
+              disabled={!hasData || isExporting || !isAdmin}
               onClick={handleExportExcel}
-              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              className="relative overflow-hidden flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#00875A] text-white text-xs font-semibold transition-all cursor-pointer shadow-xs select-none"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Export to Excel</span>
+              {/* Animated background progress fill inside the button itself */}
+              {isExporting && (
+                <div
+                  className="absolute inset-y-0 left-0 bg-[#006644] transition-all duration-200 ease-out z-0"
+                  style={{ width: `${exportProgress}%` }}
+                />
+              )}
+
+              {/* Crisp bottom progress line */}
+              {isExporting && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/25 z-0">
+                  <div
+                    className="h-full bg-white transition-all duration-200 ease-out"
+                    style={{ width: `${exportProgress}%` }}
+                  />
+                </div>
+              )}
+
+              <span className="relative z-10 flex items-center gap-1.5">
+                {isExporting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span>Exporting... {exportProgress > 0 ? `${exportProgress}%` : ''}</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                    <span>Export to Excel</span>
+                  </>
+                )}
+              </span>
             </button>
           </TooltipBottom>
         </div>
@@ -433,7 +665,12 @@ export default function StoreAssetsTable({
           </thead>
 
           {/* Scrollable Table Body */}
-          <tbody className={`divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] text-xs transition-opacity duration-200 ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
+          <tbody
+            ref={tbodyRef}
+            className={`divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] text-xs transition-opacity duration-200 ${
+              isLoading ? 'opacity-50' : 'opacity-100'
+            }`}
+          >
             {recordsToDisplay.length === 0 ? (
               <tr>
                 <td colSpan={4} className="py-8 text-center text-[#99958D]">
@@ -459,18 +696,54 @@ export default function StoreAssetsTable({
                 </td>
               </tr>
             ) : (
-              recordsToDisplay.map((record, idx) => (
-                <tr
-                  key={record.id}
-                  onClick={() => onNavigateToStore?.(record.id)}
-                  className={`${
-                    idx % 2 === 0
-                      ? 'bg-white dark:bg-[#1E1E1E]'
-                      : 'bg-[#F9F8F5] dark:bg-[#181818]'
-                  } hover:bg-[#F0F6FF]/70 dark:hover:bg-[#1E293B]/70 transition-colors ${
-                    onNavigateToStore ? 'cursor-pointer group' : ''
-                  }`}
-                >
+              recordsToDisplay.map((record, idx) => {
+                const isTopRow = idx === 0
+                const rawMove =
+                  record.move ||
+                  record.lastMove ||
+                  (isTopRow ? promotedMove : undefined)
+                const moveDirection = normalizeMove(rawMove)
+                const isMoveOut = moveDirection === 'OUT'
+                const isMoveIn = moveDirection === 'IN'
+                const isPromoted =
+                  isTopRow && (promotedStoreId === record.id || record.lastMove !== undefined)
+
+                // Only the latest data at the first position of the table keeps green or red bg;
+                // other rows use the previous odd/even alternating colors
+                const rowBgClass = isTopRow && (isMoveOut || isMoveIn)
+                  ? isMoveOut
+                    ? 'bg-[#FEF2F2] dark:bg-[#451A1A]/30 hover:bg-[#FEE2E2] dark:hover:bg-[#451A1A]/45'
+                    : 'bg-[#ECFDF5] dark:bg-[#064E3B]/25 hover:bg-[#D1FAE5] dark:hover:bg-[#064E3B]/40'
+                  : idx % 2 === 0
+                  ? 'bg-white dark:bg-[#1E1E1E]'
+                  : 'bg-[#F9F8F5] dark:bg-[#181818]'
+
+                const rowBorderClass = isTopRow && (isMoveOut || isMoveIn)
+                  ? isMoveOut
+                    ? 'border-[#FECACA]/60 dark:border-[#7F1D1D]/40'
+                    : 'border-[#A7F3D0]/60 dark:border-[#047857]/40'
+                  : 'border-[#EAE7DF]/40 dark:border-[#2C2C2C]/40'
+
+                const promotionClass = isPromoted
+                  ? isMoveOut
+                    ? 'row-promoted-active-red'
+                    : 'row-promoted-active-green'
+                  : ''
+
+                return (
+                  <tr
+                    key={record.id}
+                    data-row-key={record.id}
+                    data-row-index={idx}
+                    onClick={() => onNavigateToStore?.(record.id)}
+                    className={`group transition-colors border-b ${rowBorderClass} ${
+                      promotionClass || rowBgClass
+                    } ${
+                      !isTopRow
+                        ? 'hover:bg-[#F0F6FF]/70 dark:hover:bg-[#1E293B]/70'
+                        : ''
+                    } ${onNavigateToStore ? 'cursor-pointer' : ''}`}
+                  >
                   {/* Column 1: Stock Room (Clean text matching dropdown exactly) with View action */}
                   <td className="py-2 px-3 sm:px-4">
                     <div className="flex items-center gap-1.5">
@@ -523,8 +796,9 @@ export default function StoreAssetsTable({
                     </span>
                   </td>
                 </tr>
-              ))
-            )}
+              )
+            })
+          )}
           </tbody>
         </table>
       </div>
