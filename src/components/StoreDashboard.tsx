@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Clock,
   Building2,
@@ -86,6 +86,56 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [notification, setNotification] = useState<ToastNotification | null>(null)
   const [realtimeRefreshTick, setRealtimeRefreshTick] = useState<number>(0)
+  const [isBlinking, setIsBlinking] = useState(false)
+  const [blinkMove, setBlinkMove] = useState<'IN' | 'OUT' | null>(null)
+  const [blinkSecondsLeft, setBlinkSecondsLeft] = useState(0)
+  const prevAssetSignatureRef = useRef<string | null>(null)
+  const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Table FLIP Animation & Row Promotion References
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  const prevRowPositionsRef = useRef<Map<string, number>>(new Map())
+  const isInitialTableRender = useRef(true)
+  const skipNextAnimationRef = useRef(false)
+  const promotedRowKeyRef = useRef<string | null>(null)
+  const [recentlyPromotedKey, setRecentlyPromotedKey] = useState<string | null>(null)
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const triggerBlink = useCallback((move?: string) => {
+    const targetMove = (move || 'IN').trim().toUpperCase()
+    if (targetMove !== 'IN' && targetMove !== 'OUT') return
+
+    if (blinkIntervalRef.current) {
+      clearInterval(blinkIntervalRef.current)
+    }
+
+    setBlinkMove(targetMove as 'IN' | 'OUT')
+    setIsBlinking(true)
+    setBlinkSecondsLeft(15)
+
+    blinkIntervalRef.current = setInterval(() => {
+      setBlinkSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (blinkIntervalRef.current) clearInterval(blinkIntervalRef.current)
+          setIsBlinking(false)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }, [])
+
+  // Cleanup blink timer and highlight timer on unmount
+  useEffect(() => {
+    return () => {
+      if (blinkIntervalRef.current) {
+        clearInterval(blinkIntervalRef.current)
+      }
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current)
+      }
+    }
+  }, [])
 
   const showNotification = useCallback(
     (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
@@ -288,6 +338,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           movementDateTime: data.asset.movementDateTime
         })
 
+        // Always trigger 15s ambient shadow glow when a new WebSocket patch is received
+        triggerBlink(data.asset.move)
+
         // 2. Update KPI Summary counters
         setSummary((prev) => {
           if (!prev) return null
@@ -307,12 +360,26 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           }
         })
 
-        // 3. Prepend to Movement Rows at Row 1 and slice to preserve pagination length
+        // 3. Prepend to Movement Rows at Row 1 and trigger FLIP slide-up animation
+        const rowIdentifier =
+          data.asset.rfidEpc || data.asset.assetTag || String(data.asset.assetId)
+
+        promotedRowKeyRef.current = rowIdentifier
+        setRecentlyPromotedKey(rowIdentifier)
+
+        if (highlightTimerRef.current) {
+          clearTimeout(highlightTimerRef.current)
+        }
+        highlightTimerRef.current = setTimeout(() => {
+          setRecentlyPromotedKey(null)
+        }, 4500)
+
         setMovementRows((prevRows) => {
           const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
-          const remaining = prevRows.filter(
-            (r) => r.rfidEpc !== data.asset.rfidEpc && r.assetTag !== data.asset.assetTag
-          )
+          const remaining = prevRows.filter((r) => {
+            const rKey = r.rfidEpc || r.assetTag || String(r.assetId)
+            return rKey !== rowIdentifier
+          })
 
           const newRow: StockroomMovementRow = {
             assetId: data.asset.assetId,
@@ -331,8 +398,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           return [newRow, ...remaining].slice(0, numericPageSize)
         })
 
-        // 4. Trigger background refresh to keep totals and pagination 100% synchronized
-        setRealtimeRefreshTick((prev) => prev + 1)
+        // Update pagination totals without a disruptive immediate HTTP fetch that would wipe out the prepended row
+        setPagination((prev) =>
+          prev
+            ? {
+                ...prev,
+                totalRecords: prev.totalRecords + 1
+              }
+            : prev
+        )
       })
 
       // 4. On Undo / Rollback event: refresh data automatically
@@ -348,7 +422,28 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         signalrService.leaveStockroom(resolvedStockroomId)
       }
     }
-  }, [resolvedStockroomId, rowsPerPage])
+  }, [resolvedStockroomId, rowsPerPage, triggerBlink])
+
+  // Only trigger shadow effect when data actually changes (never on initial page load)
+  useEffect(() => {
+    if (!latestRead || !latestRead.move) {
+      return
+    }
+
+    const currentSignature = `${latestRead.rfidEpc || ''}_${latestRead.assetTag || ''}_${latestRead.movementDateTime || ''}_${latestRead.move || ''}`
+
+    if (prevAssetSignatureRef.current === null) {
+      // First initial load: save current signature, do not trigger shadow effect
+      prevAssetSignatureRef.current = currentSignature
+      return
+    }
+
+    if (prevAssetSignatureRef.current !== currentSignature) {
+      // Data actually changed: update signature and trigger 15-second ambient shadow glow
+      prevAssetSignatureRef.current = currentSignature
+      triggerBlink(latestRead.move)
+    }
+  }, [latestRead, triggerBlink])
 
   // Options for StoreFilter
   const stockRoomOptions: StoreItem[] = useMemo(() => {
@@ -381,6 +476,183 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     if (summaryName) return summaryName
     return isLoading ? 'Loading...' : 'Select Stock Room'
   }, [selectedStore, stockRoomOptions, summary, isLoading, isAdmin])
+
+  // Skip table slide animation when changing page, sorting, filter or store
+  useEffect(() => {
+    skipNextAnimationRef.current = true
+  }, [currentPage, sortField, sortOrder, debouncedSearch, selectedStore, rowsPerPage])
+
+  // Handle toggling Move (IN <-> OUT) for any row, sliding it smoothly to the top of the table
+  const handleRowMoveToggle = useCallback(
+    (row: StockroomMovementRow) => {
+      const currentMove = (row.move || 'IN').trim().toUpperCase()
+      const newMove: 'IN' | 'OUT' = currentMove === 'OUT' ? 'IN' : 'OUT'
+      const nowIso = new Date().toISOString()
+      const rowIdentifier = row.rfidEpc || row.assetTag || String(row.assetId)
+
+      // Set recently promoted key for entrance flash highlight
+      promotedRowKeyRef.current = rowIdentifier
+      setRecentlyPromotedKey(rowIdentifier)
+
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current)
+      }
+      highlightTimerRef.current = setTimeout(() => {
+        setRecentlyPromotedKey(null)
+      }, 4500)
+
+      // 1. Update Hero Card (Latest Asset Read)
+      setLatestRead({
+        assetId: row.assetId,
+        assetTag: row.assetTag,
+        serialNumber: row.serialNumber,
+        makeModel: row.makeModel,
+        assetType: row.assetType || '',
+        subAssetType: row.subAssetType || '',
+        assetDescription: row.assetDescription || '',
+        stockroomName: currentStockroomName,
+        assetState: row.assetState || (newMove === 'IN' ? 'In stock' : 'Issued'),
+        serviceRequest: '',
+        rfidEpc: row.rfidEpc || '',
+        move: newMove,
+        movementDateTime: nowIso
+      })
+
+      // 2. Trigger 15-second ambient shadow glow on Hero Card
+      triggerBlink(newMove)
+
+      // 3. Prepend this row to index 0 of movementRows
+      setMovementRows((prevRows) => {
+        const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
+        const remaining = prevRows.filter((r) => {
+          const rKey = r.rfidEpc || r.assetTag || String(r.assetId)
+          return rKey !== rowIdentifier
+        })
+
+        const updatedRow: StockroomMovementRow = {
+          ...row,
+          move: newMove,
+          movementDateTime: nowIso,
+          assetState: row.assetState || (newMove === 'IN' ? 'In stock' : 'Issued')
+        }
+
+        return [updatedRow, ...remaining].slice(0, numericPageSize)
+      })
+    },
+    [currentStockroomName, rowsPerPage, triggerBlink]
+  )
+
+  // FLIP (First, Last, Invert, Play) animation for table rows sliding to top
+  useLayoutEffect(() => {
+    const tbody = tbodyRef.current
+    if (!tbody) return
+
+    const rows = Array.from(
+      tbody.querySelectorAll<HTMLTableRowElement>('tr[data-row-key]')
+    )
+
+    // On first mount or when sorting/filtering/paging, record positions without animation
+    if (isInitialTableRender.current || skipNextAnimationRef.current) {
+      isInitialTableRender.current = false
+      skipNextAnimationRef.current = false
+      prevRowPositionsRef.current.clear()
+      rows.forEach((tr) => {
+        const key = tr.getAttribute('data-row-key')
+        if (key) {
+          prevRowPositionsRef.current.set(key, tr.getBoundingClientRect().top)
+        }
+      })
+      return
+    }
+
+    const prevPositions = prevRowPositionsRef.current
+    const animations: {
+      tr: HTMLTableRowElement
+      deltaY: number
+      isPromoted: boolean
+    }[] = []
+
+    rows.forEach((tr) => {
+      const key = tr.getAttribute('data-row-key')
+      if (!key) return
+
+      const newTop = tr.getBoundingClientRect().top
+      const oldTop = prevPositions.get(key)
+
+      if (oldTop !== undefined) {
+        const deltaY = oldTop - newTop
+        if (Math.abs(deltaY) > 1) {
+          const isPromoted = deltaY > 0 && tr.getAttribute('data-row-index') === '0'
+          animations.push({ tr, deltaY, isPromoted })
+        }
+      } else {
+        // Brand new row appearing at the top (e.g. from websocket patch for an asset not previously on page)
+        if (tr.getAttribute('data-row-index') === '0') {
+          const rowHeight = tr.getBoundingClientRect().height || 42
+          animations.push({ tr, deltaY: -rowHeight, isPromoted: true })
+        }
+      }
+    })
+
+    // Save current positions for next render
+    prevRowPositionsRef.current.clear()
+    rows.forEach((tr) => {
+      const key = tr.getAttribute('data-row-key')
+      if (key) {
+        prevRowPositionsRef.current.set(key, tr.getBoundingClientRect().top)
+      }
+    })
+
+    if (animations.length === 0) return
+
+    // 1. INVERT: Apply inverted translate immediately (before next paint)
+    animations.forEach(({ tr, deltaY, isPromoted }) => {
+      tr.style.transform = `translateY(${deltaY}px)`
+      tr.style.transition = 'none'
+      if (isPromoted) {
+        tr.style.position = 'relative'
+        tr.style.zIndex = '30'
+        tr.classList.add('row-sliding-promoted')
+      } else {
+        tr.style.position = 'relative'
+        tr.style.zIndex = '1'
+      }
+    })
+
+    // Force synchronous layout reflow so the browser commits the inverted positions
+    void tbody.offsetHeight
+
+    // 2. PLAY: Animate smoothly to natural position (translateY(0))
+    const rafId = requestAnimationFrame(() => {
+      animations.forEach(({ tr, isPromoted }) => {
+        if (isPromoted) {
+          // Smooth floating slide-up with spring ease
+          tr.style.transition =
+            'transform 650ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 650ms ease'
+        } else {
+          // Displaced rows slide down smoothly
+          tr.style.transition = 'transform 550ms cubic-bezier(0.16, 1, 0.3, 1)'
+        }
+        tr.style.transform = 'translateY(0px)'
+      })
+    })
+
+    // 3. CLEAN UP: Clean up inline styles after transition completes
+    const cleanupTimer = setTimeout(() => {
+      animations.forEach(({ tr }) => {
+        tr.style.transform = ''
+        tr.style.transition = ''
+        tr.style.position = ''
+        tr.style.zIndex = ''
+        tr.classList.remove('row-sliding-promoted')
+      })
+    }, 700)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      clearTimeout(cleanupTimer)
+    }
+  }, [movementRows])
 
   const kpiCards = [
     {
@@ -736,16 +1008,45 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       {/* Main Content Area: Latest Asset Read (Full Width) + Movements Table Below */}
       <div className="w-full flex flex-col space-y-3 sm:space-y-3.5">
         {/* Full Width Dedicated Container: Latest Asset Read Card */}
-        <div className="w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] p-3 sm:p-4 flex flex-col shadow-2xs">
+        <div
+          className={`w-full bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] p-3 sm:p-4 flex flex-col shadow-2xs transition-shadow duration-500 ${
+            isBlinking && blinkMove === 'IN'
+              ? 'animate-shadow-blink-green'
+              : isBlinking && blinkMove === 'OUT'
+              ? 'animate-shadow-blink-red'
+              : ''
+          }`}
+        >
           {/* Card Header */}
           <div className="flex items-center justify-between pb-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] shrink-0">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isBlinking
+                    ? blinkMove === 'OUT'
+                      ? 'bg-[#EF4444]'
+                      : 'bg-[#10B981]'
+                    : activeAsset?.move === 'OUT'
+                    ? 'bg-[#EF4444]'
+                    : 'bg-[#10B981]'
+                } animate-ping`}
+              />
               <h3 className="text-xs sm:text-sm font-bold text-[#171717] dark:text-[#EDEDED]">
                 Latest Asset Read
               </h3>
             </div>
             <div className="flex items-center gap-2">
+              {isBlinking && (
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase transition-all ${
+                    blinkMove === 'OUT'
+                      ? 'bg-[#FEF2F2] dark:bg-[#451A1A] text-[#DC2626] dark:text-[#F87171] border border-[#FECACA] dark:border-[#7F1D1D]'
+                      : 'bg-[#ECFDF5] dark:bg-[#064E3B] text-[#059669] dark:text-[#34D399] border border-[#A7F3D0] dark:border-[#047857]'
+                  }`}
+                >
+                  {blinkMove} Alert • {blinkSecondsLeft}s
+                </span>
+              )}
               <span className="text-[10.5px] text-[#99958D] dark:text-[#888888] font-medium">
                 Read on EPC detection
               </span>
@@ -799,20 +1100,25 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                   {/* Move Status Badge - OUT is RED, IN is GREEN */}
                   <div className="shrink-0">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold tracking-wider shrink-0 shadow-xs inline-flex items-center gap-1 ${
-                        activeAsset.move === 'OUT'
-                          ? 'bg-[#DC2626] text-white shadow-2xs'
-                          : 'bg-[#059669] text-white shadow-2xs'
-                      }`}
-                    >
-                      {activeAsset.move === 'OUT' ? (
-                        <ArrowUpRight className="w-3.5 h-3.5 stroke-[3]" />
-                      ) : (
-                        <ArrowDownLeft className="w-3.5 h-3.5 stroke-[3]" />
-                      )}
-                      <span>{activeAsset.move}</span>
-                    </span>
+                    <TooltipTop content="Click to replay 15s blink alert">
+                      <button
+                        type="button"
+                        onClick={() => triggerBlink(activeAsset.move)}
+                        className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold tracking-wider shrink-0 shadow-xs inline-flex items-center gap-1 cursor-pointer transition-transform active:scale-95 ${
+                          activeAsset.move === 'OUT'
+                            ? 'bg-[#DC2626] text-white shadow-2xs hover:bg-[#B91C1C]'
+                            : 'bg-[#059669] text-white shadow-2xs hover:bg-[#047857]'
+                        }`}
+                        title="Click to replay 15s blink alert"
+                      >
+                        {activeAsset.move === 'OUT' ? (
+                          <ArrowUpRight className="w-3.5 h-3.5 stroke-[3]" />
+                        ) : (
+                          <ArrowDownLeft className="w-3.5 h-3.5 stroke-[3]" />
+                        )}
+                        <span>{activeAsset.move}</span>
+                      </button>
+                    </TooltipTop>
                   </div>
                 </div>
 
@@ -1177,6 +1483,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </tr>
               </thead>
               <tbody
+                ref={tbodyRef}
                 className={`divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] transition-opacity duration-200 ${
                   isLoading ? 'opacity-50' : 'opacity-100'
                 }`}
@@ -1217,14 +1524,39 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     const { dateStr, timeStr } = formatMovementDateTime(
                       item.movementDateTime
                     )
+                    const isTopRow = idx === 0
+                    const isMoveOut = (item.move || '').trim().toUpperCase() === 'OUT'
+                    const rowKey = item.rfidEpc || item.assetTag || String(item.assetId)
+                    const isPromoted = recentlyPromotedKey === rowKey
+
+                    // Only the latest record at index 0 keeps green or red bg; all other rows use odd/even colors
+                    const rowBgClass = isTopRow
+                      ? isMoveOut
+                        ? 'bg-[#FEF2F2] dark:bg-[#451A1A]/30 hover:bg-[#FEE2E2] dark:hover:bg-[#451A1A]/45'
+                        : 'bg-[#ECFDF5] dark:bg-[#064E3B]/25 hover:bg-[#D1FAE5] dark:hover:bg-[#064E3B]/40'
+                      : idx % 2 === 0
+                      ? 'bg-white dark:bg-[#1E1E1E] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
+                      : 'bg-[#F9F8F5] dark:bg-[#181818] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
+
+                    const rowBorderClass = isTopRow
+                      ? isMoveOut
+                        ? 'border-[#FECACA]/60 dark:border-[#7F1D1D]/40'
+                        : 'border-[#A7F3D0]/60 dark:border-[#047857]/40'
+                      : 'border-[#EAE7DF]/40 dark:border-[#2C2C2C]/40'
+
+                    const promotionClass = isPromoted
+                      ? isMoveOut
+                        ? 'row-promoted-active-red'
+                        : 'row-promoted-active-green'
+                      : ''
 
                     return (
                       <tr
-                        key={item.assetId}
-                        className={`transition-colors border-b border-[#EAE7DF]/40 dark:border-[#2C2C2C]/40 ${
-                          idx % 2 === 0
-                            ? 'bg-white dark:bg-[#1E1E1E] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
-                            : 'bg-[#F9F8F5] dark:bg-[#181818] hover:bg-[#F3F0E6] dark:hover:bg-[#252525]'
+                        key={rowKey}
+                        data-row-key={rowKey}
+                        data-row-index={idx}
+                        className={`group transition-colors border-b ${rowBorderClass} ${
+                          promotionClass || rowBgClass
                         }`}
                       >
                         {/* Date-Time */}
@@ -1273,22 +1605,25 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           </div>
                         </td>
 
-                        {/* Move (IN / OUT badge - OUT is RED, IN is GREEN) */}
+                        {/* Move (Badge inside uniform row background) */}
                         <td className="py-1 px-2.5 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider ${
-                              item.move === 'OUT'
-                                ? 'bg-[#FEF2F2] dark:bg-[#451A1A] text-[#DC2626] dark:text-[#F87171]'
-                                : 'bg-[#ECFDF5] dark:bg-[#064E3B]/40 text-[#059669] dark:text-[#34D399]'
+                          <button
+                            type="button"
+                            onClick={() => handleRowMoveToggle(item)}
+                            title="Click to toggle IN/OUT status and slide row to top"
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-2xs ${
+                              isMoveOut
+                                ? 'bg-[#FEE2E2] dark:bg-[#7F1D1D] text-[#DC2626] dark:text-[#FCA5A5] border border-[#FECACA] dark:border-[#991B1B]/50 hover:bg-[#FCD8D8]'
+                                : 'bg-[#D1FAE5] dark:bg-[#065F46] text-[#059669] dark:text-[#6EE7B7] border border-[#A7F3D0] dark:border-[#047857]/50 hover:bg-[#A7F3D0]'
                             }`}
                           >
-                            {item.move === 'OUT' ? (
+                            {isMoveOut ? (
                               <ArrowUpRight className="w-3 h-3 stroke-[2.5]" />
                             ) : (
                               <ArrowDownLeft className="w-3 h-3 stroke-[2.5]" />
                             )}
-                            <span>{item.move}</span>
-                          </span>
+                            <span>{item.move || 'IN'}</span>
+                          </button>
                         </td>
                       </tr>
                     )

@@ -69,3 +69,128 @@ body {
   background: #C4BFB2;
 }
 
+/* Card Ambient Shadow Blinking for Latest Asset Read (IN = Green, OUT = Red) */
+@keyframes shadow-blink-green {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(52, 211, 153, 0.32),
+      0 0 24px rgba(16, 185, 129, 0.18),
+      0 0 44px rgba(16, 185, 129, 0.08);
+  }
+  50% {
+    box-shadow: 
+      0 0 6px rgba(16, 185, 129, 0.1),
+      0 0 14px rgba(16, 185, 129, 0.04);
+  }
+}
+
+@keyframes shadow-blink-red {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(248, 113, 113, 0.32),
+      0 0 24px rgba(239, 68, 68, 0.18),
+      0 0 44px rgba(239, 68, 68, 0.08);
+  }
+  50% {
+    box-shadow: 
+      0 0 6px rgba(239, 68, 68, 0.1),
+      0 0 14px rgba(239, 68, 68, 0.04);
+  }
+}
+
+.animate-shadow-blink-green,
+.animate-border-blink-green {
+  animation: shadow-blink-green 2.4s ease-in-out infinite;
+}
+
+.animate-shadow-blink-red,
+.animate-border-blink-red {
+  animation: shadow-blink-red 2.4s ease-in-out infinite;
+}
+
+/* Table Row Slide Animation & Highlights */
+tr.row-sliding-promoted {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 4px 10px -2px rgba(0, 0, 0, 0.08);
+  will-change: transform;
+}
+
+.dark tr.row-sliding-promoted {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.3);
+  will-change: transform;
+}
+
+/* Active Highlight for newly arrived / promoted WebSocket rows */
+tr.row-promoted-active-green {
+  background-color: #D1FAE5 !important;
+  box-shadow: inset 4px 0 0 #059669, 0 4px 14px rgba(16, 185, 129, 0.18);
+  animation: row-flash-green 5s ease-out forwards;
+}
+
+.dark tr.row-promoted-active-green {
+  background-color: rgba(6, 78, 59, 0.5) !important;
+  box-shadow: inset 4px 0 0 #34D399, 0 4px 14px rgba(16, 185, 129, 0.25);
+  animation: row-flash-green-dark 5s ease-out forwards;
+}
+
+tr.row-promoted-active-red {
+  background-color: #FEE2E2 !important;
+  box-shadow: inset 4px 0 0 #DC2626, 0 4px 14px rgba(239, 68, 68, 0.18);
+  animation: row-flash-red 5s ease-out forwards;
+}
+
+.dark tr.row-promoted-active-red {
+  background-color: rgba(69, 26, 26, 0.5) !important;
+  box-shadow: inset 4px 0 0 #F87171, 0 4px 14px rgba(239, 68, 68, 0.25);
+  animation: row-flash-red-dark 5s ease-out forwards;
+}
+
+@keyframes row-flash-green {
+  0% {
+    background-color: #A7F3D0;
+  }
+  30% {
+    background-color: #D1FAE5;
+  }
+  100% {
+    background-color: #ECFDF5;
+  }
+}
+
+@keyframes row-flash-green-dark {
+  0% {
+    background-color: rgba(6, 95, 70, 0.7);
+  }
+  30% {
+    background-color: rgba(6, 78, 59, 0.5);
+  }
+  100% {
+    background-color: rgba(6, 78, 59, 0.25);
+  }
+}
+
+@keyframes row-flash-red {
+  0% {
+    background-color: #FECACA;
+  }
+  30% {
+    background-color: #FEE2E2;
+  }
+  100% {
+    background-color: #FEF2F2;
+  }
+}
+
+@keyframes row-flash-red-dark {
+  0% {
+    background-color: rgba(127, 29, 29, 0.7);
+  }
+  30% {
+    background-color: rgba(69, 26, 26, 0.5);
+  }
+  100% {
+    background-color: rgba(69, 26, 26, 0.3);
+  }
+}
+
+
+
