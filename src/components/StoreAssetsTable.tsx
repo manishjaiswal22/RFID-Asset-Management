@@ -422,9 +422,20 @@ export default function StoreAssetsTable({
       setInternalIsExporting(true)
       setExportProgress(10)
       try {
-        await downloadExcelExport(1, null, (percent) => {
-          setExportProgress(percent)
-        })
+        const parsedId =
+          selectedStoreId && selectedStoreId !== 'all'
+            ? parseInt(selectedStoreId.replace(/^stock-/, ''), 10)
+            : NaN
+        const targetStockroomId = !Number.isNaN(parsedId) && parsedId > 0 ? parsedId : null
+
+        await downloadExcelExport(
+          1,
+          targetStockroomId,
+          (percent) => {
+            setExportProgress(percent)
+          },
+          activeFilteredStore?.storeName
+        )
         showNotification('success', 'Central Dashboard exported to Excel successfully!')
       } catch (err: any) {
         console.warn('CentralDashboard: backend Excel export failed', err)

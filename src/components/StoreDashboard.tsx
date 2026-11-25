@@ -837,16 +837,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     setIsExportingExcel(true)
     setExportProgress(10)
     try {
-      // Always pass the resolved stockroomId when a specific stock room is selected:
-      // - Admin + "All Stock Rooms" → no stockroomId (exports all)
-      // - Admin + specific stockroom → stockroomId
-      // - Normal stockroom user → stockroomId (from selected store / assigned stockroom)
+      // - Admin + "All Stock Rooms" → undefined (exports all)
+      // - Admin + specific stockroom → resolvedStockroomId
+      // - Normal stockroom user → undefined (backend resolves assigned stockroom_id from JWT)
       const targetStockroomId =
-        selectedStore && selectedStore !== 'all' ? resolvedStockroomId : undefined
+        isAdmin && selectedStore && selectedStore !== 'all' ? resolvedStockroomId : undefined
 
-      await downloadExcelExport(2, targetStockroomId, (percent) => {
-        setExportProgress(percent)
-      })
+      await downloadExcelExport(
+        2,
+        targetStockroomId,
+        (percent) => {
+          setExportProgress(percent)
+        },
+        resolvedStockroomName
+      )
       showNotification('success', 'Stock Room Dashboard exported to Excel successfully!')
     } catch (err: any) {
       console.warn('StoreDashboard: backend Excel export failed', err)

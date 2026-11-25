@@ -73,6 +73,7 @@ export const normalizeSuggestions = (
   }
 
   const result: ApiStockroom[] = []
+  const seenIds = new Set<number>()
 
   list.forEach((item, index) => {
     if (typeof item === 'string') {
@@ -84,12 +85,16 @@ export const normalizeSuggestions = (
         const sClean = s.stockroomName.toLowerCase().replace(/[^a-z0-9]/g, '')
         return s.stockroomName.toLowerCase() === name.toLowerCase() || (cleanName && sClean === cleanName)
       })
-      result.push({
-        stockroomId: match ? match.stockroomId : index + 1,
-        stockroomName: name
-      })
+      const stockroomId = match ? match.stockroomId : index + 1
+      if (stockroomId > 0 && !seenIds.has(stockroomId)) {
+        seenIds.add(stockroomId)
+        result.push({
+          stockroomId,
+          stockroomName: name
+        })
+      }
     } else if (item && typeof item === 'object') {
-      const id =
+      const rawId =
         item.stockroomId ??
         item.stockRoomId ??
         item.stockroom_id ??
@@ -98,8 +103,12 @@ export const normalizeSuggestions = (
         item.id ??
         item.value ??
         item.key ??
-        item.code ??
-        index + 1
+        item.code
+
+      const parsedId = Number(rawId)
+      if (!Number.isFinite(parsedId) || parsedId <= 0 || seenIds.has(parsedId)) {
+        return
+      }
 
       const name =
         item.stockroomName ??
@@ -114,12 +123,12 @@ export const normalizeSuggestions = (
         item.title ??
         item.displayName ??
         item.display_name ??
-        item.description ??
-        (typeof item.toString === 'function' ? item.toString() : String(item))
+        item.description
 
       if (name && typeof name === 'string' && name.trim()) {
+        seenIds.add(parsedId)
         result.push({
-          stockroomId: Number(id) || index + 1,
+          stockroomId: parsedId,
           stockroomName: name.trim()
         })
       }
