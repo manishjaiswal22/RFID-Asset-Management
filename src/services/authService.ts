@@ -1,7 +1,29 @@
 import type { LoginRequest, LoginResponse, AuthUser } from '../types/auth'
 
 const TOKEN_KEY = 'ham_pro_auth_token'
+const REFRESH_TOKEN_KEY = 'ham_pro_refresh_token'
 const USER_KEY = 'ham_pro_auth_user'
+
+let refreshPromise: Promise<string | null> | null = null
+
+const getAuthBaseUrl = (): string => {
+  const envUrl = (
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    '/api'
+  ).trim()
+
+  if (envUrl.endsWith('/api/auth/login')) {
+    return envUrl.replace(/\/auth\/login$/, '')
+  }
+  if (envUrl.endsWith('/api')) {
+    return envUrl
+  }
+  if (!envUrl || envUrl === '/') {
+    return '/api'
+  }
+  return `${envUrl.replace(/\/+$/, '')}/api`
+}
 
 export const getLoginApiUrl = (): string => {
   const envUrl = (
@@ -84,6 +106,9 @@ export const authService = {
 
       if (data && data.success && data.token) {
         localStorage.setItem(TOKEN_KEY, data.token)
+        if (data.refreshToken) {
+          localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
+        }
         if (data.user) {
           localStorage.setItem(USER_KEY, JSON.stringify(data.user))
         }
@@ -140,43 +165,111 @@ export const authService = {
     return true
   },
 
+  getRefreshToken(): string | null {
+    return localStorage.getItem(REFRESH_TOKEN_KEY)
+  },
+
+  async refreshAccessToken(): Promise<string | null> {
+    if (refreshPromise) {
+      return refreshPromise
+    }
+
+    refreshPromise = (async () => {
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
+      if (!refreshToken) return null
+
+      try {
+        const response = await fetch(`${getAuthBaseUrl()}/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken }),
+        })
+
+        if (!response.ok) {
+          return null
+        }
+
+        const data = (await response.json().catch(() => null)) as LoginResponse | null
+        if (data?.success && data.token) {
+          localStorage.setItem(TOKEN_KEY, data.token)
+          if (data.refreshToken) {
+            localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
+          }
+          if (data.user) {
+            localStorage.setItem(USER_KEY, JSON.stringify(data.user))
+          }
+          return data.token
+        }
+        return null
+      } catch {
+        return null
+      }
+    })().finally(() => {
+      refreshPromise = null
+    })
+
+    return refreshPromise
+  },
+
   logout(): void {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (token) {
+      fetch(`${getAuthBaseUrl()}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => {})
+    }
     localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
   },
 
   startTokenExpirationWatcher(onExpired: () => void): () => void {
+    let disposed = false
+
+    const handleExpiry = async () => {
+      if (disposed) return
+      const newToken = await this.refreshAccessToken()
+      if (!newToken && !disposed) {
+        this.logout()
+        onExpired()
+      }
+    }
+
     const check = () => {
       const token = localStorage.getItem(TOKEN_KEY)
       if (token && isTokenExpired(token)) {
-        this.logout()
-        onExpired()
+        void handleExpiry()
       }
     }
 
     // Check periodically every 3 seconds
     const interval = setInterval(check, 3000)
 
-    // Also set a precise timeout for exact expiration moment
+    // Also set a precise timeout 30s before expiration to refresh proactively
     let timeout: any = null
     const token = localStorage.getItem(TOKEN_KEY)
     if (token) {
       const decoded = parseJwt(token)
       if (decoded && typeof decoded.exp === 'number') {
-        const msRemaining = decoded.exp * 1000 - Date.now()
+        const msRemaining = decoded.exp * 1000 - Date.now() - 30000
         if (msRemaining > 0) {
           timeout = setTimeout(() => {
-            this.logout()
-            onExpired()
+            void handleExpiry()
           }, msRemaining)
         } else {
-          this.logout()
-          onExpired()
+          void handleExpiry()
         }
       }
     }
 
     return () => {
+      disposed = true
       clearInterval(interval)
       if (timeout) clearTimeout(timeout)
     }

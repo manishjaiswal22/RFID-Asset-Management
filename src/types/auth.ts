@@ -19,5 +19,7 @@ export interface LoginResponse {
   message: string
   token?: string
   expiresAt?: string
+  refreshToken?: string
+  refreshTokenExpiresAt?: string
   user?: AuthUser
 }
