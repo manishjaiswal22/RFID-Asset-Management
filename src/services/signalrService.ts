@@ -164,7 +164,7 @@ class SignalRService {
           transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling
         })
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-        .configureLogging(signalR.LogLevel.Information)
+        .configureLogging(signalR.LogLevel.None)
         .build()
 
       this.connection.onreconnecting((error) => {
@@ -184,7 +184,6 @@ class SignalRService {
       })
 
       await this.connection.start()
-      console.info('SignalR: Connected to Dashboard Hub successfully.')
       this.clearReconnectTimer()
       this.notifyStatusChange()
       return this.connection
