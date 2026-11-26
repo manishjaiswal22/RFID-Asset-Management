@@ -1,4 +1,5 @@
 import { authService } from './authService'
+import { apiFetch } from './apiClient'
 import type { ApiStockroom } from '../types/stockroom'
 import type {
   CentralDashboardParams,
@@ -36,40 +37,46 @@ const checkResponseAuth = (response: Response) => {
   }
 }
 
+let inFlightStockroomsPromise: Promise<ApiStockroom[]> | null = null
+
 export const dashboardService = {
   async getStockrooms(): Promise<ApiStockroom[]> {
+    if (inFlightStockroomsPromise) {
+      return inFlightStockroomsPromise
+    }
+
     const url = `${getApiBaseUrl()}/dashboard/stockrooms`
-    const token = authService.getToken()
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-    }
+    inFlightStockroomsPromise = (async () => {
+      const response = await apiFetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json'
+        }
+      })
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
-    }
+      checkResponseAuth(response)
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stockrooms: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid format for stockrooms response')
+      }
+
+      return data as ApiStockroom[]
+    })().finally(() => {
+      inFlightStockroomsPromise = null
     })
 
-    checkResponseAuth(response)
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stockrooms: ${response.status} ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    if (!Array.isArray(data)) {
-      throw new Error('Invalid format for stockrooms response')
-    }
-
-    return data as ApiStockroom[]
+    return inFlightStockroomsPromise
   },
 
   async getCentralDashboard(
-    params?: CentralDashboardParams
+    params?: CentralDashboardParams,
+    signal?: AbortSignal
   ): Promise<CentralDashboardResponse> {
     const query = new URLSearchParams()
     if (params?.page !== undefined) query.set('page', String(params.page))
@@ -83,19 +90,13 @@ export const dashboardService = {
 
     const queryString = query.toString()
     const url = `${getApiBaseUrl()}/dashboard/central${queryString ? `?${queryString}` : ''}`
-    const token = authService.getToken()
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json'
-    }
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
-    }
-
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
-      headers
+      headers: {
+        Accept: 'application/json'
+      },
+      signal
     })
 
     checkResponseAuth(response)
@@ -111,7 +112,8 @@ export const dashboardService = {
   },
 
   async getStockroomDashboard(
-    params?: StockroomDashboardParams
+    params?: StockroomDashboardParams,
+    signal?: AbortSignal
   ): Promise<StockroomDashboardResponse> {
     const query = new URLSearchParams()
     if (params?.stockroomId !== undefined)
@@ -128,19 +130,13 @@ export const dashboardService = {
 
     const queryString = query.toString()
     const url = `${getApiBaseUrl()}/dashboard/stockroom${queryString ? `?${queryString}` : ''}`
-    const token = authService.getToken()
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json'
-    }
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
-    }
-
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
-      headers
+      headers: {
+        Accept: 'application/json'
+      },
+      signal
     })
 
     checkResponseAuth(response)

@@ -77,6 +77,10 @@ class SignalRService {
         console.warn('SignalR: Browser went offline.')
         this.notifyStatusChange()
       })
+
+      window.addEventListener('pagehide', () => {
+        void this.disconnect()
+      })
     }
   }
 

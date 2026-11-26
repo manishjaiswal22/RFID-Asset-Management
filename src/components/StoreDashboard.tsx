@@ -280,19 +280,23 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   // Fetch stockroom dashboard data (cards, latest read, movements) from API
   useEffect(() => {
     let mounted = true
+    const controller = new AbortController()
     setIsLoading(true)
 
     const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
 
     dashboardService
-      .getStockroomDashboard({
-        stockroomId: resolvedStockroomId,
-        page: currentPage,
-        pageSize: numericPageSize,
-        search: debouncedSearch.trim() || undefined,
-        sortBy: sortField,
-        sortDesc: sortOrder === 'desc'
-      })
+      .getStockroomDashboard(
+        {
+          stockroomId: resolvedStockroomId,
+          page: currentPage,
+          pageSize: numericPageSize,
+          search: debouncedSearch.trim() || undefined,
+          sortBy: sortField,
+          sortDesc: sortOrder === 'desc'
+        },
+        controller.signal
+      )
       .then((res) => {
         if (!mounted) return
         setSummary(res.summary)
@@ -301,6 +305,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         setMovementRows(res.rows)
       })
       .catch((err) => {
+        if (err?.name === 'AbortError') return
         console.error('Failed to load stockroom dashboard data from API', err)
       })
       .finally(() => {
@@ -309,6 +314,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
     return () => {
       mounted = false
+      controller.abort()
     }
   }, [
     resolvedStockroomId,

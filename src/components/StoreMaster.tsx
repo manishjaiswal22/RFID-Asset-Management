@@ -104,18 +104,22 @@ export const StoreMaster: React.FC = () => {
   }, [isModalOpen])
 
   // Fetch stock rooms from backend API
-  const fetchStockrooms = useCallback(async () => {
+  const fetchStockrooms = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true)
     try {
       const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
-      const data = await stockroomService.getStockrooms({
-        page: currentPage,
-        pageSize: numericPageSize,
-        sortBy: sortField,
-        sortDesc: sortOrder === 'desc',
-        search: debouncedSearch.trim() || undefined
-      })
+      const data = await stockroomService.getStockrooms(
+        {
+          page: currentPage,
+          pageSize: numericPageSize,
+          sortBy: sortField,
+          sortDesc: sortOrder === 'desc',
+          search: debouncedSearch.trim() || undefined
+        },
+        signal
+      )
 
+      if (signal?.aborted) return
       setRecords(data.rows || [])
       if (data.summary) {
         setSummary(data.summary)
@@ -124,15 +128,22 @@ export const StoreMaster: React.FC = () => {
         setPagination(data.pagination)
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError') return
       console.error('Failed to load stock room records', err)
       showNotification('error', err.message || 'Failed to load stock rooms.')
     } finally {
-      setIsLoading(false)
+      if (!signal?.aborted) {
+        setIsLoading(false)
+      }
     }
   }, [currentPage, rowsPerPage, sortField, sortOrder, debouncedSearch])
 
   useEffect(() => {
-    fetchStockrooms()
+    const controller = new AbortController()
+    fetchStockrooms(controller.signal)
+    return () => {
+      controller.abort()
+    }
   }, [fetchStockrooms])
 
   // Form Reset

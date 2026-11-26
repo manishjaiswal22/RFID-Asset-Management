@@ -1,4 +1,5 @@
 import { authService } from './authService'
+import { apiFetch } from './apiClient'
 import type {
   GetStockroomsMasterParams,
   GetStockroomsMasterResponse,
@@ -53,7 +54,8 @@ export const stockroomService = {
    * 1. List Stock Rooms (GET /api/stockrooms)
    */
   async getStockrooms(
-    params?: GetStockroomsMasterParams
+    params?: GetStockroomsMasterParams,
+    signal?: AbortSignal
   ): Promise<GetStockroomsMasterResponse> {
     const query = new URLSearchParams()
     if (params?.page !== undefined) query.set('page', String(params.page))
@@ -65,9 +67,10 @@ export const stockroomService = {
     const queryString = query.toString()
     const url = `${getApiBaseUrl()}/stockrooms${queryString ? `?${queryString}` : ''}`
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
+      signal
     })
 
     checkResponseAuth(response)

@@ -6,6 +6,7 @@ import { BottomCurvedFooter } from './components/BottomCurvedFooter'
 import { WiproLoader } from './components/WiproLoader'
 import { useTheme } from './context/ThemeContext'
 import { authService } from './services/authService'
+import { signalrService } from './services/signalrService'
 import type { AuthUser } from './types/auth'
 import wiproLogo from './assets/wipro_new_logo.svg'
 import wiproLogoWhite from './assets/wipro_new_logo_white.svg'
@@ -24,6 +25,7 @@ export const App: React.FC = () => {
     }, 850)
 
     const handleUnauthorized = () => {
+      void signalrService.disconnect()
       authService.logout()
       setCurrentUser(null)
       setView('login')
@@ -40,6 +42,7 @@ export const App: React.FC = () => {
     if (view !== 'dashboard') return
 
     const handleExpired = () => {
+      void signalrService.disconnect()
       authService.logout()
       setCurrentUser(null)
       setView('login')
@@ -60,6 +63,7 @@ export const App: React.FC = () => {
       <DashboardLayout
         currentUser={currentUser}
         onLogout={() => {
+          void signalrService.disconnect()
           authService.logout()
           setCurrentUser(null)
           setView('login')

@@ -161,19 +161,23 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
   // Fetch Central Dashboard card summary & table records from API
   useEffect(() => {
     let mounted = true
+    const controller = new AbortController()
     setIsLoading(true)
 
     const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
 
     dashboardService
-      .getCentralDashboard({
-        page: currentPage,
-        pageSize: numericPageSize,
-        sortBy: getSortByParam(sortField),
-        sortDesc: sortOrder === 'desc',
-        stockroomId: resolvedStockroomId,
-        search: debouncedSearch.trim() || undefined
-      })
+      .getCentralDashboard(
+        {
+          page: currentPage,
+          pageSize: numericPageSize,
+          sortBy: getSortByParam(sortField),
+          sortDesc: sortOrder === 'desc',
+          stockroomId: resolvedStockroomId,
+          search: debouncedSearch.trim() || undefined
+        },
+        controller.signal
+      )
       .then((res) => {
         if (!mounted) return
         setSummary(res.summary)
@@ -197,6 +201,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
         )
       })
       .catch((err) => {
+        if (err?.name === 'AbortError') return
         console.error('Failed to load central dashboard data from API', err)
       })
       .finally(() => {
@@ -205,6 +210,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
 
     return () => {
       mounted = false
+      controller.abort()
     }
   }, [
     currentPage,
