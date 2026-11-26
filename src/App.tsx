@@ -30,15 +30,26 @@ export const App: React.FC = () => {
     }
     window.addEventListener('auth:unauthorized', handleUnauthorized)
 
-    // Active JWT token expiration watcher (checks exact expiry timestamp & periodic polling)
-    const stopWatcher = authService.startTokenExpirationWatcher(handleUnauthorized)
-
     return () => {
       clearTimeout(timer)
       window.removeEventListener('auth:unauthorized', handleUnauthorized)
-      stopWatcher()
     }
   }, [])
+
+  useEffect(() => {
+    if (view !== 'dashboard') return
+
+    const handleExpired = () => {
+      authService.logout()
+      setCurrentUser(null)
+      setView('login')
+    }
+
+    const stopWatcher = authService.startTokenExpirationWatcher(handleExpired)
+    return () => {
+      stopWatcher()
+    }
+  }, [view])
 
   if (isInitialLoading) {
     return <WiproLoader />
