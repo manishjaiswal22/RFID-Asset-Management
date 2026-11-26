@@ -468,10 +468,10 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
 
   return (
     <div className="w-full flex-1 flex flex-col space-y-2 sm:space-y-2.5">
-      {/* Top Header Section & 4 KPI Cards: Sticky on desktop below navbar */}
+      {/* Top Header Section & 4 KPI Cards: Sticky on desktop (lg+) below navbar */}
       <div
         ref={cardsRef}
-        className="sticky top-12 sm:top-14 z-30 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2 sm:space-y-2.5 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors"
+        className="lg:sticky lg:top-14 lg:z-30 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2 sm:space-y-2.5 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors"
       >
         {/* Top Header Section */}
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 sm:gap-2.5 pb-1.5 sm:pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">

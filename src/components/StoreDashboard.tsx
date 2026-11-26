@@ -928,10 +928,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       {/* Toast Notification */}
       <Toast notification={notification} onClose={() => setNotification(null)} />
 
-      {/* Top Header Section & 4 KPI Cards: Sticky below navbar */}
+      {/* Top Header Section & 4 KPI Cards: Sticky on desktop (lg+) below navbar */}
       <div
         ref={cardsRef}
-        className="sticky top-12 sm:top-14 z-30 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2.5 sm:space-y-3 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors"
+        className="lg:sticky lg:top-14 lg:z-30 bg-white dark:bg-[#1C1C1C] flex flex-col space-y-2.5 sm:space-y-3 pb-2 -mt-0.5 sm:-mt-1 pt-0.5 transition-colors"
       >
         {/* Top Header Section (Live Pill, Time Pill, Stock Room Filter) */}
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 sm:gap-2.5 pb-1.5 sm:pb-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] shrink-0">
@@ -1395,7 +1395,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <div
             ref={toolbarRef}
             style={{ top: `${cardsBottomOffset}px` }}
-            className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 sticky z-25 rounded-t-2xl"
+            className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 lg:sticky lg:z-25 rounded-t-2xl"
           >
             {/* Left: Search input */}
             <div className="flex items-center gap-2 flex-1 max-w-sm">
@@ -1499,11 +1499,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
 
           {/* Table Container */}
-          <div className="w-full sm:overflow-visible overflow-x-auto [scrollbar-width:thin]">
-            <table className="w-full table-fixed text-left border-collapse select-none text-xs">
+          <div className="w-full overflow-x-auto lg:overflow-visible [scrollbar-width:thin]">
+            <table className="w-full min-w-[780px] lg:min-w-full table-fixed text-left border-collapse select-none text-xs">
               <thead
                 style={{ top: `${cardsBottomOffset + toolbarHeight}px` }}
-                className="sticky z-20 border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs"
+                className="lg:sticky lg:z-20 border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs"
               >
                 <tr className="bg-[#F4F7FB] dark:bg-[#252830]">
                   <th
