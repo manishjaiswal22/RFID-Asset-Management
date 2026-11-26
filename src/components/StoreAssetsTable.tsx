@@ -493,7 +493,7 @@ export default function StoreAssetsTable({
           top: cardsBottomOffset !== undefined ? `${cardsBottomOffset}px` : undefined
         }}
         className={`px-3 py-1.5 sm:px-4 sm:py-2 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 ${
-          cardsBottomOffset !== undefined ? 'sticky z-25' : 'lg:sticky lg:top-[213px] lg:z-15'
+          cardsBottomOffset !== undefined ? 'lg:sticky lg:z-25' : 'lg:sticky lg:top-[213px] lg:z-15'
         } rounded-t-2xl`}
       >
         {/* Left: Search input & Active Stock Room Filter Badge */}
@@ -622,7 +622,7 @@ export default function StoreAssetsTable({
               top: cardsBottomOffset !== undefined ? `${cardsBottomOffset + toolbarHeight}px` : undefined
             }}
             className={`border-b border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xs ${
-              cardsBottomOffset !== undefined ? 'sticky z-20' : 'lg:sticky lg:top-[258px] lg:z-10'
+              cardsBottomOffset !== undefined ? 'lg:sticky lg:z-20' : 'lg:sticky lg:top-[258px] lg:z-10'
             }`}
           >
             <tr className="bg-[#F4F7FB] dark:bg-[#252830]">
