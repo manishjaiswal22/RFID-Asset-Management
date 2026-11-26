@@ -248,7 +248,8 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
         }
         highlightTimerRef.current = setTimeout(() => {
           setPromotedStoreId(null)
-        }, 4500)
+          setPromotedMove(null)
+        }, 15000)
 
         setTableRows((prevRows) => {
           const numericPageSize = rowsPerPage === 'all' ? 100 : rowsPerPage
@@ -302,7 +303,8 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
           }
           highlightTimerRef.current = setTimeout(() => {
             setPromotedStoreId(null)
-          }, 4500)
+            setPromotedMove(null)
+          }, 15000)
 
           const updatedRow: StoreAssetRecord = {
             id: storeIdStr,

@@ -716,12 +716,11 @@ export default function StoreAssetsTable({
                 const moveDirection = normalizeMove(rawMove)
                 const isMoveOut = moveDirection === 'OUT'
                 const isMoveIn = moveDirection === 'IN'
-                const isPromoted =
-                  isTopRow && (promotedStoreId === record.id || record.lastMove !== undefined)
+                const isPromoted = isTopRow && promotedStoreId === record.id
 
-                // Only the latest data at the first position of the table keeps green or red bg;
-                // other rows use the previous odd/even alternating colors
-                const rowBgClass = isTopRow && (isMoveOut || isMoveIn)
+                // Only the latest data at the first position of the table keeps green or red bg for 15s;
+                // other rows (and after 15s) use the normal odd/even alternating colors
+                const rowBgClass = isPromoted && (isMoveOut || isMoveIn)
                   ? isMoveOut
                     ? 'bg-[#FEF2F2] dark:bg-[#451A1A]/30 hover:bg-[#FEE2E2] dark:hover:bg-[#451A1A]/45'
                     : 'bg-[#ECFDF5] dark:bg-[#064E3B]/25 hover:bg-[#D1FAE5] dark:hover:bg-[#064E3B]/40'
@@ -729,7 +728,7 @@ export default function StoreAssetsTable({
                   ? 'bg-white dark:bg-[#1E1E1E]'
                   : 'bg-[#F9F8F5] dark:bg-[#181818]'
 
-                const rowBorderClass = isTopRow && (isMoveOut || isMoveIn)
+                const rowBorderClass = isPromoted && (isMoveOut || isMoveIn)
                   ? isMoveOut
                     ? 'border-[#FECACA]/60 dark:border-[#7F1D1D]/40'
                     : 'border-[#A7F3D0]/60 dark:border-[#047857]/40'
