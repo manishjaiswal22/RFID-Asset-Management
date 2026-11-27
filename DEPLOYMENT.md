@@ -19,3 +19,9 @@ npm run build
 ```
 
 Copy the contents of `dist/` into `WIPRO Server/wwwroot/` before publishing the backend.
+
+## Notes
+
+- Node.js is **not** required on the target server — IIS/Kestrel serves the compiled static assets directly from `wwwroot/`.
+- Always run `npm run build` after updating `.env.production` or frontend source files.
+
