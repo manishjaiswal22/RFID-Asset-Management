@@ -31,6 +31,7 @@ const getInitialMenu = (user?: AuthUser | null): NavMenu => {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, currentUser }) => {
   const [activeMenu, setActiveMenu] = useState<NavMenu>(() => getInitialMenu(currentUser))
   const [isCollapsed, setIsCollapsed] = useState(true)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [centralSearchQuery, setCentralSearchQuery] = useState<string>('')
   const [stockRoomDashboardStoreId, setStockRoomDashboardStoreId] = useState<string>(() => {
     if (currentUser?.stockroomId) {
@@ -62,29 +63,32 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, curr
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F5F1] dark:bg-[#121212] text-[#171717] dark:text-[#EDEDED] flex flex-col justify-between select-none transition-colors">
+    <div className="min-h-[100dvh] bg-[#F6F5F1] dark:bg-[#121212] text-[#171717] dark:text-[#EDEDED] flex flex-col justify-between select-none transition-colors">
       <Sidebar
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
         currentUser={currentUser}
       />
 
       <div
-        className={`flex-1 flex flex-col justify-between min-h-screen transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[padding-left] ${
-          isCollapsed ? 'pl-14' : 'pl-56'
+        className={`flex-1 flex flex-col justify-between min-h-[100dvh] pl-0 transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[padding-left] ${
+          isCollapsed ? 'lg:pl-14' : 'lg:pl-56'
         }`}
       >
         <Header
           pageTitle={getPageTitle(activeMenu)}
           onLogout={onLogout}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           userName={currentUser?.userName}
           currentUser={currentUser}
         />
 
-        <main className="flex-1 px-1.5 sm:px-2.5 pb-2 sm:pb-3 pt-1.5 sm:pt-2 flex flex-col">
-          <div className="w-full flex-1 rounded-2xl bg-white dark:bg-[#1C1C1C] p-3 sm:p-4 flex flex-col transition-colors border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs">
+        <main className="flex-1 px-2 sm:px-2.5 pb-2 sm:pb-3 pt-1.5 sm:pt-2 flex flex-col min-w-0">
+          <div className="w-full flex-1 rounded-2xl bg-white dark:bg-[#1C1C1C] p-2.5 sm:p-4 flex flex-col transition-colors border border-[#EAE7DF]/70 dark:border-[#262626] shadow-xs min-w-0">
             {activeMenu === 'central' && (
               <CentralDashboard
                 currentUser={currentUser}

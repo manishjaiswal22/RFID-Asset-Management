@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Sun, Moon, LogOut, User, ChevronDown } from 'lucide-react'
+import { Sun, Moon, LogOut, User, ChevronDown, Menu } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { TooltipBottom } from './Tooltip'
 import type { AuthUser } from '../types/auth'
@@ -9,11 +9,17 @@ import wiproLogoWhite from '../assets/wipro_new_logo_white.svg'
 interface HeaderProps {
   pageTitle: string
   onLogout: () => void
+  onOpenMobileMenu?: () => void
   userName?: string
   currentUser?: AuthUser | null
 }
 
-export const Header: React.FC<HeaderProps> = ({ onLogout, userName, currentUser }) => {
+export const Header: React.FC<HeaderProps> = ({
+  onLogout,
+  onOpenMobileMenu,
+  userName,
+  currentUser
+}) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { theme, toggleTheme } = useTheme()
@@ -35,27 +41,39 @@ export const Header: React.FC<HeaderProps> = ({ onLogout, userName, currentUser 
   }, [])
 
   return (
-    <header className="sticky top-0 z-[50] h-12 sm:h-14 pl-1.5 sm:pl-2.5 pr-2.5 sm:pr-4 flex items-center justify-between select-none shrink-0 bg-[#F6F5F1] dark:bg-[#121212] border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <header className="sticky top-0 z-[50] h-12 sm:h-14 px-2 sm:px-3.5 flex items-center justify-between gap-2 select-none shrink-0 bg-[#F6F5F1] dark:bg-[#121212] border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C]/60 transition-colors">
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+        {onOpenMobileMenu && (
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            className="lg:hidden w-8.5 h-8.5 shrink-0 rounded-xl flex items-center justify-center text-[#171717] dark:text-[#EDEDED] bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] hover:bg-[#EDEAE2] dark:hover:bg-[#252525] transition-colors cursor-pointer"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-4.5 h-4.5" />
+          </button>
+        )}
+
         <div className="flex items-center shrink-0">
           <img
             src={theme === 'dark' ? wiproLogoWhite : wiproLogo}
             alt="Wipro"
-            className="h-7 sm:h-8.5 w-auto object-contain"
+            className="h-6 sm:h-8.5 w-auto object-contain"
             style={{ maxWidth: '115px' }}
           />
         </div>
 
-        <h1 className="block text-xs sm:text-sm md:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap truncate">
-          HAM Pro Asset Management System
+        <h1 className="block text-[11px] sm:text-sm md:text-base font-bold text-[#171717] dark:text-[#EDEDED] tracking-wider uppercase whitespace-nowrap truncate">
+          <span className="sm:hidden">HAM Pro</span>
+          <span className="hidden sm:inline">HAM Pro Asset Management System</span>
         </h1>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         <TooltipBottom content={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
           <button
             onClick={toggleTheme}
-            className="w-9 h-9 sm:w-9.5 sm:h-9.5 flex items-center justify-center rounded-xl text-[#666666] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#252525] transition-colors cursor-pointer border border-[#EAE7DF] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E]"
+            className="w-8.5 h-8.5 sm:w-9.5 sm:h-9.5 flex items-center justify-center rounded-xl text-[#666666] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-white hover:bg-[#EDEAE2] dark:hover:bg-[#252525] transition-colors cursor-pointer border border-[#EAE7DF] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E]"
             aria-label="Toggle Theme"
           >
             {theme === 'dark' ? (
@@ -69,14 +87,14 @@ export const Header: React.FC<HeaderProps> = ({ onLogout, userName, currentUser 
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="h-9 sm:h-9.5 flex items-center gap-2 pl-2 pr-2.5 sm:pr-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] hover:bg-[#FAF9F6] dark:hover:bg-[#252525] transition-colors cursor-pointer"
+            className="h-8.5 sm:h-9.5 flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 pr-2 sm:pr-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] hover:bg-[#FAF9F6] dark:hover:bg-[#252525] transition-colors cursor-pointer"
           >
             <div className="w-6 h-6 rounded-lg bg-[#F5F3EE] dark:bg-[#282828] border border-[#EAE7DF] dark:border-[#333333] flex items-center justify-center text-[#171717] dark:text-white shrink-0">
               <User className="w-3.5 h-3.5" />
             </div>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] whitespace-nowrap">
-                Welcome {displayName}
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] whitespace-nowrap truncate max-w-[78px] sm:max-w-none">
+                <span className="hidden sm:inline">Welcome </span>{displayName}
               </span>
             </div>
             <ChevronDown className={`w-3.5 h-3.5 text-[#99958D] shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />

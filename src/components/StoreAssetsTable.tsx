@@ -613,8 +613,141 @@ export default function StoreAssetsTable({
         </div>
       </div>
 
-      {/* Table Container */}
-      <div className="relative w-full sm:overflow-visible overflow-x-auto [scrollbar-width:thin]">
+      {/* Mobile Sort Strip */}
+      <div className="md:hidden px-3 py-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] bg-[#FAF9F6]/60 dark:bg-[#202020] flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[#99958D] shrink-0 mr-0.5">
+          Sort:
+        </span>
+        {(
+          [
+            { key: 'totalAssets', label: 'Total' },
+            { key: 'totalOut', label: 'Issued' },
+            { key: 'totalIn', label: 'Available' },
+            { key: 'storeName', label: 'Name' }
+          ] as const
+        ).map((opt) => {
+          const active = sortField === opt.key
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => handleSort(opt.key)}
+              className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                active
+                  ? 'bg-[#171717] dark:bg-white text-white dark:text-[#171717] border-[#171717] dark:border-white'
+                  : 'bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333]'
+              }`}
+            >
+              <span>{opt.label}</span>
+              {active && <span className="text-[10px]">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Mobile Touch Card View */}
+      <div
+        className={`md:hidden divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] transition-opacity duration-200 ${
+          isLoading ? 'opacity-50' : 'opacity-100'
+        }`}
+      >
+        {recordsToDisplay.length === 0 ? (
+          <div className="py-8 px-4 text-center text-[#99958D]">
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2 py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                <span className="font-medium text-xs">Loading records from server...</span>
+              </div>
+            ) : (
+              <>
+                <p className="font-medium text-xs">No matching stock room records found.</p>
+                {selectedStoreId !== 'all' && onClearStoreFilter && (
+                  <button
+                    type="button"
+                    onClick={onClearStoreFilter}
+                    className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                  >
+                    Clear stock room filter and show all records
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          recordsToDisplay.map((record, idx) => {
+            const isTopRow = idx === 0
+            const rawMove =
+              record.move ||
+              record.lastMove ||
+              (isTopRow ? promotedMove : undefined)
+            const moveDirection = normalizeMove(rawMove)
+            const isMoveOut = moveDirection === 'OUT'
+            const isMoveIn = moveDirection === 'IN'
+            const isPromoted = isTopRow && promotedStoreId === record.id
+
+            return (
+              <div
+                key={`mobile-${record.id}`}
+                onClick={() => onNavigateToStore?.(record.id)}
+                className={`p-3 transition-colors ${
+                  onNavigateToStore ? 'active:bg-[#F0F6FF] dark:active:bg-[#1E293B] cursor-pointer' : ''
+                } ${
+                  isPromoted && (isMoveOut || isMoveIn)
+                    ? isMoveOut
+                      ? 'bg-[#FEF2F2] dark:bg-[#451A1A]/30 border-l-4 border-l-[#DC2626]'
+                      : 'bg-[#ECFDF5] dark:bg-[#064E3B]/25 border-l-4 border-l-[#059669]'
+                    : 'bg-white dark:bg-[#1E1E1E]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2.5">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Building2 className="w-4 h-4 text-[#0284C7] shrink-0 mt-0.5" />
+                    <span className="font-semibold text-[#171717] dark:text-[#EDEDED] text-xs leading-snug break-words">
+                      {record.storeName}
+                    </span>
+                  </div>
+                  {onNavigateToStore && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#EBF8FE] dark:bg-[#00a8e7]/15 text-[#0284C7] dark:text-[#38bdf8] text-[10.5px] font-bold shrink-0">
+                      <Eye className="w-3 h-3" />
+                      <span>Open</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5 text-center">
+                  <div className="rounded-xl bg-[#FAF9F6] dark:bg-[#252525] border border-[#EAE7DF]/70 dark:border-[#303030] py-1.5 px-2">
+                    <div className="text-[9.5px] uppercase tracking-wider font-semibold text-[#64748B] dark:text-[#94A3B8]">
+                      Total
+                    </div>
+                    <div className="text-sm font-bold text-[#171717] dark:text-[#EDEDED] tabular-nums mt-0.5">
+                      {record.totalAssets.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-[#FFF7ED] dark:bg-[#7C2D12]/25 border border-[#FFEDD5] dark:border-[#7C2D12]/40 py-1.5 px-2">
+                    <div className="text-[9.5px] uppercase tracking-wider font-semibold text-[#EA580C] dark:text-[#FB923C]">
+                      Issued
+                    </div>
+                    <div className="text-sm font-bold text-[#EA580C] dark:text-[#FB923C] tabular-nums mt-0.5">
+                      {record.totalOut.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/25 border border-[#D1FAE5] dark:border-[#047857]/40 py-1.5 px-2">
+                    <div className="text-[9.5px] uppercase tracking-wider font-semibold text-[#059669] dark:text-[#34D399]">
+                      Available
+                    </div>
+                    <div className="text-sm font-bold text-[#059669] dark:text-[#34D399] tabular-nums mt-0.5">
+                      {(record.totalAssets - record.totalOut).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop Table Container */}
+      <div className="hidden md:block relative w-full sm:overflow-visible overflow-x-auto [scrollbar-width:thin]">
         <table className="w-full text-left border-collapse select-none">
           {/* Table Header: Sticky below toolbar */}
           <thead
@@ -814,7 +947,7 @@ export default function StoreAssetsTable({
       </div>
 
       {/* Table Pagination Footer */}
-      <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex items-center justify-between text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
+      <div className="px-3 py-2 sm:px-4 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
         <div>
           <span>
             Showing{' '}

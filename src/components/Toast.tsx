@@ -43,14 +43,14 @@ export const Toast: React.FC<ToastProps> = ({ notification, onClose }) => {
   }
 
   return (
-    <div className="fixed top-20 right-6 z-[9999] animate-in fade-in slide-in-from-top-3 duration-200 shadow-2xl pointer-events-auto">
+    <div className="fixed top-14 sm:top-20 left-3 right-3 sm:left-auto sm:right-6 z-[9999] flex justify-center sm:justify-end animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-none">
       <div
         role="alert"
         onClick={onClose}
-        className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold select-none border backdrop-blur-md cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98] ${getStyle()}`}
+        className={`flex items-center gap-2.5 px-3.5 sm:px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold select-none border backdrop-blur-md cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98] pointer-events-auto max-w-full ${getStyle()}`}
       >
         {getIcon()}
-        <span>{notification.message}</span>
+        <span className="break-words">{notification.message}</span>
       </div>
     </div>
   )

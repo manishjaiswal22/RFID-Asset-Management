@@ -418,20 +418,20 @@ export const StoreMaster: React.FC = () => {
         </div>
 
         {/* Quick KPI Count Badges & Add Button */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <div className="h-8 px-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] flex items-center gap-1.5 text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap">
+          <div className="h-8 px-2.5 sm:px-3 rounded-xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] flex items-center gap-1.5 text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
             <Building2 className="w-3.5 h-3.5 text-[#1D63ED] shrink-0" />
             <span>Total:</span>
             <strong className="font-bold tabular-nums">{summary.totalStockRooms}</strong>
           </div>
 
-          <div className="h-8 px-3 rounded-xl border border-[#A7F3D0]/60 dark:border-[#059669]/30 bg-[#ECFDF5] dark:bg-[#064E3B]/30 flex items-center gap-1.5 text-xs font-semibold text-[#059669] dark:text-[#34D399]">
+          <div className="h-8 px-2.5 sm:px-3 rounded-xl border border-[#A7F3D0]/60 dark:border-[#059669]/30 bg-[#ECFDF5] dark:bg-[#064E3B]/30 flex items-center gap-1.5 text-xs font-semibold text-[#059669] dark:text-[#34D399]">
             <span className="w-2 h-2 rounded-full bg-[#059669] dark:bg-[#34D399]" />
             <span>Active:</span>
             <strong className="font-bold tabular-nums">{summary.activeStockRooms}</strong>
           </div>
 
-          <div className="h-8 px-3 rounded-xl border border-[#FECACA]/60 dark:border-[#DC2626]/30 bg-[#FEF2F2] dark:bg-[#451A1A]/40 flex items-center gap-1.5 text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
+          <div className="h-8 px-2.5 sm:px-3 rounded-xl border border-[#FECACA]/60 dark:border-[#DC2626]/30 bg-[#FEF2F2] dark:bg-[#451A1A]/40 flex items-center gap-1.5 text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
             <span className="w-2 h-2 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
             <span>Inactive:</span>
             <strong className="font-bold tabular-nums">{summary.inactiveStockRooms}</strong>
@@ -440,7 +440,7 @@ export const StoreMaster: React.FC = () => {
           <button
             type="button"
             onClick={handleOpenAddModal}
-            className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer ml-1"
+            className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer ml-auto sm:ml-1"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Add Stock Room</span>
@@ -549,8 +549,112 @@ export const StoreMaster: React.FC = () => {
           </div>
         </div>
 
-        {/* Scrollable Table Body */}
-        <div className="relative w-full overflow-x-auto [scrollbar-width:thin]">
+        {/* Mobile Touch Card View */}
+        <div
+          className={`md:hidden divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] transition-opacity duration-200 ${
+            isLoading ? 'opacity-50' : 'opacity-100'
+          }`}
+        >
+          {records.length === 0 ? (
+            <div className="py-10 px-4 text-center text-[#99958D]">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                  <span>Loading stock rooms...</span>
+                </div>
+              ) : (
+                <>
+                  <p className="font-medium text-xs">No matching stock room records found.</p>
+                  {debouncedSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="mt-1.5 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                    >
+                      Clear search filter
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            records.map((item) => (
+              <div key={`mobile-store-${item.stockroomId}`} className="p-3 bg-white dark:bg-[#1E1E1E] space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Building2 className="w-4 h-4 text-[#0284C7] shrink-0 mt-0.5" />
+                    <span className="font-semibold text-xs text-[#171717] dark:text-[#EDEDED] leading-snug break-words">
+                      {item.stockroomName}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(item)}
+                    disabled={actionLoadingId === item.stockroomId}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wide border shrink-0 cursor-pointer disabled:opacity-50 ${
+                      item.status === 'Active'
+                        ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
+                        : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626]'
+                    }`}
+                  >
+                    {actionLoadingId === item.stockroomId ? (
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                    ) : (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          item.status === 'Active'
+                            ? 'bg-[#059669] dark:bg-[#34D399]'
+                            : 'bg-[#DC2626] dark:bg-[#F87171]'
+                        }`}
+                      />
+                    )}
+                    <span>{item.status}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-1 text-[11px] bg-[#FAF9F6] dark:bg-[#242424] rounded-xl p-2.5 border border-[#EAE7DF]/70 dark:border-[#2F2F2F]">
+                  <div className="flex items-center gap-1.5 min-w-0 text-[#555555] dark:text-[#B0B0B0]">
+                    <User className="w-3.5 h-3.5 text-[#6366F1] shrink-0" />
+                    <span className="text-[10px] font-bold uppercase text-[#99958D]">Eng:</span>
+                    <span className="truncate font-medium text-[#171717] dark:text-[#EDEDED]">
+                      {item.stockroomEngineer || '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0 text-[#555555] dark:text-[#B0B0B0]">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#8B5CF6] shrink-0" />
+                    <span className="text-[10px] font-bold uppercase text-[#99958D]">Lead:</span>
+                    <span className="truncate font-medium text-[#171717] dark:text-[#EDEDED]">
+                      {item.stockroomLead || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(item)}
+                    disabled={actionLoadingId === item.stockroomId}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#EAE7DF] dark:border-[#333333] text-[11px] font-semibold text-[#64748B] hover:text-[#059669] cursor-pointer disabled:opacity-50"
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>{item.status === 'Active' ? 'Deactivate' : 'Activate'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(item)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#EAE7DF] dark:border-[#333333] text-[11px] font-semibold text-[#64748B] hover:text-[#1D63ED] cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Scrollable Table Body */}
+        <div className="hidden md:block relative w-full overflow-x-auto [scrollbar-width:thin]">
           <table className="w-full text-left border-collapse select-none text-xs">
             <thead className="bg-[#F4F7FB] dark:bg-[#252830] border-b border-[#EAE7DF] dark:border-[#2C2C2C]">
               <tr>
@@ -730,7 +834,7 @@ export const StoreMaster: React.FC = () => {
         </div>
 
         {/* Table Pagination Footer with 1, 2, 3... */}
-        <div className="px-3 py-1.5 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex items-center justify-between text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
+        <div className="px-3 py-2 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
           <div>
             <span>
               Showing{' '}
@@ -810,15 +914,15 @@ export const StoreMaster: React.FC = () => {
       {/* Add / Edit Stock Room Modal */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-2.5 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
           onClick={handleCloseModal}
         >
           <div
-            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-y-auto my-auto"
+            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92dvh] overflow-y-auto my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323]">
+            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
                   {editingRecord ? <Edit2 className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
@@ -849,7 +953,7 @@ export const StoreMaster: React.FC = () => {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 sm:space-y-5">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-7 space-y-4 sm:space-y-5">
               {/* Field 1: Stock Room Name */}
               <div>
                 <label className="block text-xs font-bold text-[#475569] dark:text-[#94A3B8] uppercase tracking-wider mb-1.5">

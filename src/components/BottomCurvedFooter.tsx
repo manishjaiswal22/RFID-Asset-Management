@@ -29,14 +29,14 @@ export const BottomCurvedFooter: React.FC = () => {
         </svg>
       </div>
 
-      <div className="flex-1 h-12 sm:h-14 flex items-center justify-end px-3 sm:px-8 gap-2 sm:gap-2.5 text-[#666666] dark:text-[#A0A0A0] min-w-0">
-        <span className="text-xs sm:text-sm text-[#666666] dark:text-[#A0A0A0] font-normal whitespace-nowrap">
+      <div className="flex-1 h-12 sm:h-14 flex items-center justify-end px-2.5 sm:px-8 gap-1.5 sm:gap-2.5 text-[#666666] dark:text-[#A0A0A0] min-w-0">
+        <span className="text-[11px] sm:text-sm text-[#666666] dark:text-[#A0A0A0] font-normal whitespace-nowrap truncate">
           Designed &amp; Developed by
         </span>
         <img
           src={theme === 'dark' ? vyaptiLogoWhite : vyaptiLogo}
           alt="Vyapti"
-          className="h-7 sm:h-8 md:h-8.5 w-auto object-contain shrink-0"
+          className="h-6 sm:h-8 md:h-8.5 w-auto object-contain shrink-0"
           style={{ maxHeight: '34px' }}
         />
       </div>

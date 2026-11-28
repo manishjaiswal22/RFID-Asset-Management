@@ -265,7 +265,7 @@ export default function StoreFilter({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         title={currentStore.name}
-        className="h-8 px-3 bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] hover:border-[#D5D0C6] dark:hover:border-[#383838] rounded-2xl flex items-center justify-between gap-2 text-xs font-semibold text-[#171717] dark:text-[#EDEDED] transition-all cursor-pointer min-w-[160px] sm:min-w-[190px] max-w-[260px] sm:max-w-[340px]"
+        className="w-full sm:w-auto h-8 px-3 bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] hover:border-[#D5D0C6] dark:hover:border-[#383838] rounded-2xl flex items-center justify-between gap-2 text-xs font-semibold text-[#171717] dark:text-[#EDEDED] transition-all cursor-pointer sm:min-w-[190px] max-w-full sm:max-w-[340px]"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
@@ -296,9 +296,9 @@ export default function StoreFilter({
         </div>
       </button>
 
-      {/* Stock Room Dropdown Menu (Wider to display full stock room names cleanly) */}
+      {/* Stock Room Dropdown Menu (Wider to display full stock room names cleanly, safe on mobile) */}
       {isOpen && (
-        <div className="absolute right-0 mt-1.5 w-80 sm:w-96 bg-white dark:bg-[#1C1C1C] border border-[#EAE7DF] dark:border-[#2C2C2C] rounded-2xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden">
+        <div className="absolute left-0 sm:left-auto right-0 mt-1.5 w-full sm:w-96 min-w-[250px] max-w-[calc(100vw-2rem)] bg-white dark:bg-[#1C1C1C] border border-[#EAE7DF] dark:border-[#2C2C2C] rounded-2xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden">
           {/* Search Box */}
           <div className="p-2.5 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#232323]">
             <div className="relative">

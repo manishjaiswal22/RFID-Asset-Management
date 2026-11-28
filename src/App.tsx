@@ -73,7 +73,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen max-h-screen w-full bg-[#F6F5F1] dark:bg-[#121212] text-[#171717] dark:text-[#EDEDED] flex flex-col justify-between relative select-none overflow-hidden">
+    <div className="min-h-[100dvh] lg:h-screen lg:max-h-screen w-full bg-[#F6F5F1] dark:bg-[#121212] text-[#171717] dark:text-[#EDEDED] flex flex-col justify-between relative select-none overflow-x-hidden lg:overflow-hidden">
       <OfficeRoomBackgroundScene />
 
       <header className="relative z-20 px-4 sm:px-8 lg:px-14 pt-3 sm:pt-4 pb-1 flex items-center justify-between shrink-0">

@@ -413,7 +413,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
       value: summary.totalStockRooms,
       icon: (
         <Building2
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#1D63ED]/50 dark:text-[#60A5FA]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#1D63ED]/50 dark:text-[#60A5FA]/60"
           strokeWidth={1.8}
         />
       ),
@@ -428,7 +428,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
       value: summary.totalTaggedAssets,
       icon: (
         <Tag
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#7C3AED]/50 dark:text-[#C084FC]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#7C3AED]/50 dark:text-[#C084FC]/60"
           strokeWidth={1.8}
         />
       ),
@@ -443,7 +443,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
       value: summary.assetIssuance,
       icon: (
         <ArrowUpRight
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#EA580C]/50 dark:text-[#FB923C]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#EA580C]/50 dark:text-[#FB923C]/60"
           strokeWidth={2}
         />
       ),
@@ -458,7 +458,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
       value: summary.availableAssets,
       icon: (
         <ArrowDownLeft
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
           strokeWidth={2}
         />
       ),
@@ -484,14 +484,14 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0 w-full xl:w-auto">
             {/* Live / WebSocket Connection Status Pill */}
             <ConnectionStatusPill />
 
             {/* Time Pill */}
-            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
+            <div className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-[11px] sm:text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
               <Clock className="w-3.5 h-3.5 text-[#F5A23A] shrink-0" />
-              <span>{formatDateTime(currentTime)}</span>
+              <span className="truncate">{formatDateTime(currentTime)}</span>
             </div>
 
             {/* Stock Room Selection */}
@@ -500,16 +500,17 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
               selectedStore={selectedStore}
               onStoreChange={handleStoreChange}
               stores={stockRoomOptions}
+              className="w-full sm:w-auto"
             />
           </div>
         </div>
 
-        {/* 4 KPI Cards Grid (Increased Height, Rounded-2xl, Borderless Large Icons) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
+        {/* 4 KPI Cards Grid (2x2 on mobile, 4-col on desktop) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
           {cards.map((card) => (
             <div
               key={card.id}
-              className={`group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[88px] sm:min-h-[96px] cursor-pointer`}
+              className={`group relative overflow-hidden rounded-2xl p-3 sm:p-4 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[78px] sm:min-h-[96px] cursor-pointer`}
             >
               {/* Background Layer: Subtle Curved Wave Pattern */}
               <svg
@@ -545,13 +546,13 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
               />
 
               {/* Left: Title & Big Number */}
-              <div className="relative z-10 flex flex-col justify-between space-y-1 min-w-0">
+              <div className="relative z-10 flex flex-col justify-between space-y-0.5 sm:space-y-1 min-w-0">
                 <span
-                  className={`text-xs sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}
+                  className={`text-[11px] sm:text-[13px] font-semibold ${card.titleColor} truncate tracking-normal`}
                 >
                   {card.title}
                 </span>
-                <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+                <div className="text-xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
                   <TickerNumber value={card.value} />
                 </div>
               </div>

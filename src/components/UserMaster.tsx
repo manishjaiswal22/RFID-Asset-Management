@@ -625,18 +625,18 @@ export const UserMaster: React.FC = () => {
         </div>
 
         {/* Quick Metric Pills & Add User Button */}
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-xl bg-[#FAF9F6] dark:bg-[#222222] border border-[#EAE7DF] dark:border-[#2C2C2C] text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+          <div className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl bg-[#FAF9F6] dark:bg-[#222222] border border-[#EAE7DF] dark:border-[#2C2C2C] text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
             <User className="w-3.5 h-3.5 text-[#1D63ED]" />
             <span>Total:</span>
             <span className="font-bold">{summary.totalUsers}</span>
           </div>
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#059669] text-xs font-semibold text-[#059669] dark:text-[#34D399]">
+          <div className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#059669] text-xs font-semibold text-[#059669] dark:text-[#34D399]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#059669] dark:bg-[#34D399]" />
             <span>Active:</span>
             <span className="font-bold">{summary.activeUsers}</span>
           </div>
-          <div className="h-8 flex items-center gap-1.5 px-3 rounded-xl bg-[#FEF2F2] dark:bg-[#451A1A]/40 border border-[#FECACA] dark:border-[#DC2626] text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
+          <div className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-xl bg-[#FEF2F2] dark:bg-[#451A1A]/40 border border-[#FECACA] dark:border-[#DC2626] text-xs font-semibold text-[#DC2626] dark:text-[#F87171]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626] dark:bg-[#F87171]" />
             <span>Inactive:</span>
             <span className="font-bold">{summary.inactiveUsers}</span>
@@ -644,7 +644,7 @@ export const UserMaster: React.FC = () => {
           <button
             type="button"
             onClick={handleOpenAddModal}
-            className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer ml-1"
+            className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#171717] hover:bg-[#2C2C2C] dark:bg-white dark:hover:bg-[#EAE7DF] text-white dark:text-[#171717] text-xs font-bold transition-all shadow-xs cursor-pointer ml-auto sm:ml-1"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Add User</span>
@@ -758,8 +758,166 @@ export const UserMaster: React.FC = () => {
           </div>
         </div>
 
-        {/* Scrollable Table Body */}
-        <div className="relative w-full overflow-x-auto [scrollbar-width:thin]">
+        {/* Mobile Touch Card View */}
+        <div
+          className={`md:hidden divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] transition-opacity duration-200 ${
+            isLoading ? 'opacity-50' : 'opacity-100'
+          }`}
+        >
+          {records.length === 0 ? (
+            <div className="py-8 px-4 text-center text-xs text-[#99958D] dark:text-[#737373]">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                  <span>Loading user records...</span>
+                </div>
+              ) : (
+                <>
+                  <p className="font-medium">No user records match your criteria.</p>
+                  {debouncedSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="mt-2 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                    >
+                      Clear search filter
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            records.map((item) => {
+              const currentUser = authService.getUser()
+              const isSelf = Boolean(
+                currentUser &&
+                  (item.userId === currentUser.userId ||
+                    item.userName.toLowerCase() === currentUser.userName?.toLowerCase())
+              )
+
+              return (
+                <div key={`mobile-user-${item.userId}`} className="p-3 bg-white dark:bg-[#1E1E1E] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 text-[#1D63ED] flex items-center justify-center text-[10px] font-bold uppercase shrink-0">
+                        {item.userName.slice(0, 2)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-[#171717] dark:text-[#EDEDED] truncate">
+                          {item.userName}
+                        </div>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[9.5px] font-bold tracking-wide border mt-0.5 ${
+                            item.userType === 'ADMIN'
+                              ? 'bg-[#F3E8FF] dark:bg-[#581C87]/30 text-[#7C3AED] dark:text-[#C084FC] border-[#E9D5FF] dark:border-[#7C3AED]'
+                              : 'bg-[#EFF6FF] dark:bg-[#1E3A8A]/30 text-[#1D63ED] dark:text-[#60A5FA] border-[#DBEAFE] dark:border-[#1D63ED]'
+                          }`}
+                        >
+                          <Shield className="w-2.5 h-2.5" />
+                          <span>{item.userType || 'STOCKROOM'}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(item)}
+                      disabled={isSelf || actionLoadingId === item.userId}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold tracking-wide border shrink-0 ${
+                        isSelf
+                          ? 'opacity-80 cursor-not-allowed bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669]'
+                          : item.status === 'Active'
+                            ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#064E3B]/40 dark:text-[#34D399] dark:border-[#059669] cursor-pointer'
+                            : 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] dark:bg-[#451A1A] dark:text-[#F87171] dark:border-[#DC2626] cursor-pointer'
+                      }`}
+                    >
+                      {actionLoadingId === item.userId ? (
+                        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                      ) : (
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            item.status === 'Active'
+                              ? 'bg-[#059669] dark:bg-[#34D399]'
+                              : 'bg-[#DC2626] dark:bg-[#F87171]'
+                          }`}
+                        />
+                      )}
+                      <span>{item.status}</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-1.5 text-[11px] bg-[#FAF9F6] dark:bg-[#242424] rounded-xl p-2.5 border border-[#EAE7DF]/70 dark:border-[#2F2F2F]">
+                    {item.stockroomName && (
+                      <div className="flex items-center gap-1.5 min-w-0 text-[#555555] dark:text-[#B0B0B0]">
+                        <Building2 className="w-3.5 h-3.5 text-[#00a8e7] shrink-0" />
+                        <span className="truncate font-medium">{item.stockroomName}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-[#555555] dark:text-[#B0B0B0]">
+                      <span className="inline-flex items-center gap-1 min-w-0 truncate font-mono">
+                        <Mail className="w-3 h-3 text-[#99958D] shrink-0" />
+                        <span className="truncate">{item.email || '-'}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono tabular-nums shrink-0">
+                        <Phone className="w-3 h-3 text-[#99958D] shrink-0" />
+                        <span>{item.contactNumber || '-'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[11px] text-[#171717] dark:text-[#EDEDED] bg-[#FAF9F6] dark:bg-[#181818] px-2 py-1 rounded-lg border border-[#EAE7DF] dark:border-[#333333]">
+                        {revealedPasswords[item.userId] ? item.password || '••••••••' : '••••••••'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRevealRowPassword(item.userId)}
+                        className="p-1.5 rounded-lg border border-[#EAE7DF] dark:border-[#333333] text-[#64748B] hover:text-[#171717] dark:hover:text-white cursor-pointer"
+                        aria-label={revealedPasswords[item.userId] ? 'Hide password' : 'Show password'}
+                      >
+                        {revealedPasswords[item.userId] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPassword(item.userId, item.password)}
+                        className="p-1.5 rounded-lg border border-[#EAE7DF] dark:border-[#333333] text-[#64748B] hover:text-[#171717] dark:hover:text-white cursor-pointer"
+                        aria-label="Copy password to clipboard"
+                      >
+                        {copiedId === item.userId ? <Check className="w-3.5 h-3.5 text-[#059669]" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(item)}
+                        className="p-2 rounded-lg border border-[#EAE7DF] dark:border-[#333333] text-[#64748B] hover:text-[#1D63ED] cursor-pointer"
+                        aria-label="Edit User"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item)}
+                        disabled={isSelf || actionLoadingId === item.userId}
+                        className={`p-2 rounded-lg border border-[#EAE7DF] dark:border-[#333333] ${
+                          isSelf ? 'text-[#A0A0A0] opacity-40 cursor-not-allowed' : 'text-[#64748B] hover:text-[#DC2626] cursor-pointer'
+                        }`}
+                        aria-label={isSelf ? 'You cannot delete your own account' : 'Delete User'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Desktop Scrollable Table Body */}
+        <div className="hidden md:block relative w-full overflow-x-auto [scrollbar-width:thin]">
           <table className="w-full text-left border-collapse">
             <thead className="bg-[#FAF9F6] dark:bg-[#232323] border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] text-[11px] font-bold text-[#666666] dark:text-[#A0A0A0] uppercase tracking-wider">
               <tr>
@@ -1082,7 +1240,7 @@ export const UserMaster: React.FC = () => {
         </div>
 
         {/* Table Pagination Footer */}
-        <div className="px-3 py-1.5 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex items-center justify-between text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
+        <div className="px-3 py-2 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
           <div>
             <span>
               Showing{' '}
@@ -1150,15 +1308,15 @@ export const UserMaster: React.FC = () => {
       {/* Add / Edit User Modal */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-2.5 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
           onClick={handleCloseModal}
         >
           <div
-            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-2xl sm:max-w-3xl rounded-2xl bg-white dark:bg-[#1E1E1E] border border-[#EAE7DF] dark:border-[#2C2C2C] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323] sticky top-0 z-10">
+            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#EAE7DF]/70 dark:border-[#2C2C2C] flex items-center justify-between bg-[#FAF9F6]/90 dark:bg-[#232323] sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#1D63ED]/10 dark:bg-[#1D63ED]/20 flex items-center justify-center text-[#1D63ED] dark:text-[#60A5FA]">
                   {editingId ? <Edit2 className="w-5 h-5" /> : <User className="w-5 h-5" />}
@@ -1188,7 +1346,7 @@ export const UserMaster: React.FC = () => {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 sm:space-y-5">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-7 space-y-4 sm:space-y-5">
               {/* Row 1: User Type & Stock Room Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#181818] border border-[#EAE7DF] dark:border-[#2F2F2F]">
                 <div>

@@ -690,7 +690,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       textValue: summary?.stockroomName || currentStockroomName,
       icon: (
         <Building2
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#1D63ED]/50 dark:text-[#60A5FA]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#1D63ED]/50 dark:text-[#60A5FA]/60"
           strokeWidth={1.8}
         />
       ),
@@ -705,7 +705,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       value: summary?.totalTaggedAssets ?? 0,
       icon: (
         <Tag
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#7C3AED]/50 dark:text-[#C084FC]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#7C3AED]/50 dark:text-[#C084FC]/60"
           strokeWidth={1.8}
         />
       ),
@@ -720,7 +720,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       value: summary?.assetIssuance ?? 0,
       icon: (
         <ArrowUpRight
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#EA580C]/50 dark:text-[#FB923C]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#EA580C]/50 dark:text-[#FB923C]/60"
           strokeWidth={2}
         />
       ),
@@ -735,7 +735,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       value: summary?.availableAssets ?? 0,
       icon: (
         <ArrowDownLeft
-          className="w-9 h-9 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
+          className="w-7 h-7 sm:w-10 sm:h-10 text-[#059669]/50 dark:text-[#4ADE80]/60"
           strokeWidth={2}
         />
       ),
@@ -941,14 +941,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0 w-full xl:w-auto">
             {/* Live / WebSocket Connection Status Pill */}
             <ConnectionStatusPill />
 
             {/* Time Pill */}
-            <div className="h-8 flex items-center gap-1.5 px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
+            <div className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-2xl border border-[#EAE7DF] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#202020] text-[11px] sm:text-xs font-medium text-[#171717] dark:text-[#EDEDED] tabular-nums">
               <Clock className="w-3.5 h-3.5 text-[#F5A23A] shrink-0" />
-              <span>{formatDateTime(currentTime)}</span>
+              <span className="truncate">{formatDateTime(currentTime)}</span>
             </div>
 
             {/* Stock Room Selection */}
@@ -957,16 +957,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               selectedStore={selectedStore}
               onStoreChange={handleStoreChange}
               stores={stockRoomOptions}
+              className="w-full sm:w-auto"
             />
           </div>
         </div>
 
-        {/* 4 KPI Cards Grid (Stock Room, Total Tagged Assets, Asset Issuance, Available Assets) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
+        {/* 4 KPI Cards Grid (2x2 on mobile, 4-col on desktop) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
           {kpiCards.map((card) => (
             <div
               key={card.id}
-              className={`group relative overflow-hidden rounded-2xl p-3 sm:p-3.5 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[80px] sm:min-h-[88px] cursor-pointer`}
+              className={`group relative overflow-hidden rounded-2xl p-2.5 sm:p-3.5 ${card.bgClass} border ${card.borderClass} hover:border-transparent hover:-translate-y-0.5 transition-all duration-300 select-none flex items-center justify-between min-h-[76px] sm:min-h-[88px] cursor-pointer`}
             >
               {/* Background Layer: Subtle Curved Wave Pattern */}
               <svg
@@ -1010,13 +1011,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
                 {card.isText ? (
                   <div
-                    className="text-xs sm:text-[13px] lg:text-sm font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight line-clamp-2 leading-snug break-words"
+                    className="text-[11px] sm:text-[13px] lg:text-sm font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight line-clamp-2 leading-snug break-words"
                     title={card.textValue}
                   >
                     {card.textValue}
                   </div>
                 ) : (
-                  <div className="text-2xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
+                  <div className="text-xl sm:text-[26px] font-bold text-[#171717] dark:text-[#EDEDED] tracking-tight">
                     <TickerNumber value={card.value || 0} />
                   </div>
                 )}
@@ -1498,8 +1499,135 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           </div>
 
-          {/* Table Container */}
-          <div className="w-full overflow-x-auto lg:overflow-visible [scrollbar-width:thin]">
+          {/* Mobile Sort Strip */}
+          <div className="md:hidden px-3 py-2 border-b border-[#EAE7DF]/60 dark:border-[#2C2C2C] bg-[#FAF9F6]/60 dark:bg-[#202020] flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#99958D] shrink-0 mr-0.5">
+              Sort:
+            </span>
+            {(
+              [
+                { key: 'movementDateTime', label: 'Time' },
+                { key: 'move', label: 'Move' },
+                { key: 'assetTag', label: 'Tag' },
+                { key: 'makeModel', label: 'Model' }
+              ] as const
+            ).map((opt) => {
+              const active = sortField === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => handleSort(opt.key)}
+                  className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-[#171717] dark:bg-white text-white dark:text-[#171717] border-[#171717] dark:border-white'
+                      : 'bg-white dark:bg-[#181818] text-[#666666] dark:text-[#A0A0A0] border-[#EAE7DF] dark:border-[#333333]'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {active && <span className="text-[10px]">{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Mobile Touch Card View */}
+          <div
+            className={`md:hidden divide-y divide-[#EAE7DF]/60 dark:divide-[#2C2C2C] transition-opacity duration-200 ${
+              isLoading ? 'opacity-50' : 'opacity-100'
+            }`}
+          >
+            {movementRows.length === 0 ? (
+              <div className="py-8 px-4 text-center text-[#99958D]">
+                {isLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#1D63ED]" />
+                    <span className="font-medium text-xs">Loading movement records...</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-medium text-xs">No matching movement records found.</p>
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('')
+                          setCurrentPage(1)
+                        }}
+                        className="mt-1.5 text-xs text-[#00a8e7] hover:underline cursor-pointer"
+                      >
+                        Clear search query
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              movementRows.map((item, idx) => {
+                const { dateStr, timeStr } = formatMovementDateTime(item.movementDateTime)
+                const isTopRow = idx === 0
+                const itemMove = normalizeMove(item.move) || 'IN'
+                const isMoveOut = itemMove === 'OUT'
+                const rowKey = item.rfidEpc || item.assetTag || String(item.assetId)
+
+                return (
+                  <div
+                    key={`mobile-${rowKey}`}
+                    className={`p-3 transition-colors ${
+                      isTopRow
+                        ? isMoveOut
+                          ? 'bg-[#FEF2F2] dark:bg-[#451A1A]/30 border-l-4 border-l-[#DC2626]'
+                          : 'bg-[#ECFDF5] dark:bg-[#064E3B]/25 border-l-4 border-l-[#059669]'
+                        : 'bg-white dark:bg-[#1E1E1E]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-[#1D63ED] dark:text-[#60A5FA] tabular-nums truncate">
+                          {item.assetTag}
+                        </div>
+                        <div className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] truncate mt-0.5">
+                          {item.makeModel}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRowMoveToggle(item)}
+                        className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-bold tracking-wider cursor-pointer active:scale-95 ${
+                          isMoveOut
+                            ? 'bg-[#FEE2E2] dark:bg-[#7F1D1D] text-[#DC2626] dark:text-[#FCA5A5] border border-[#FECACA] dark:border-[#991B1B]/50'
+                            : 'bg-[#D1FAE5] dark:bg-[#065F46] text-[#059669] dark:text-[#6EE7B7] border border-[#A7F3D0] dark:border-[#047857]/50'
+                        }`}
+                      >
+                        {isMoveOut ? (
+                          <ArrowUpRight className="w-3 h-3 stroke-[2.5]" />
+                        ) : (
+                          <ArrowDownLeft className="w-3 h-3 stroke-[2.5]" />
+                        )}
+                        <span>{itemMove}</span>
+                      </button>
+                    </div>
+
+                    {(item.assetDescription || item.subAssetType || item.assetType) && (
+                      <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] truncate mt-1">
+                        {item.assetDescription || item.subAssetType || item.assetType}
+                      </p>
+                    )}
+
+                    <div className="mt-2 pt-1.5 border-t border-[#EAE7DF]/50 dark:border-[#2C2C2C]/60 flex items-center justify-between gap-2 text-[10.5px] text-[#64748B] dark:text-[#94A3B8]">
+                      <span className="font-mono truncate">S/N: {item.serialNumber || '-'}</span>
+                      <span className="tabular-nums shrink-0 font-medium">
+                        {dateStr} • {timeStr}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Desktop Table Container */}
+          <div className="hidden md:block w-full overflow-x-auto lg:overflow-visible [scrollbar-width:thin]">
             <table className="w-full min-w-[780px] lg:min-w-full table-fixed text-left border-collapse select-none text-xs">
               <thead
                 style={{ top: `${cardsBottomOffset + toolbarHeight}px` }}
@@ -1748,7 +1876,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
 
           {/* Table Pagination Footer with Numbered Pages (1, 2, 3...) */}
-          <div className="px-3 py-1.5 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex items-center justify-between text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
+          <div className="px-3 py-2 border-t border-[#EAE7DF]/70 dark:border-[#2C2C2C] bg-[#FAF9F6]/80 dark:bg-[#232323] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] sm:text-xs text-[#666666] dark:text-[#A0A0A0] shrink-0">
             <div>
               <span>
                 Showing{' '}
