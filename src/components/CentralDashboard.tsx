@@ -68,6 +68,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [realtimeRefreshTick, setRealtimeRefreshTick] = useState<number>(0)
   const [promotedStoreId, setPromotedStoreId] = useState<string | null>(null)
   const [promotedMove, setPromotedMove] = useState<'IN' | 'OUT' | null>(null)
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -218,7 +219,8 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
     sortField,
     sortOrder,
     debouncedSearch,
-    resolvedStockroomId
+    resolvedStockroomId,
+    realtimeRefreshTick
   ])
 
   // Listen for real-time stockroom updates over WebSockets / SignalR
@@ -329,7 +331,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
         })
       })
 
-      // 3. Live rollback / deletion detected (Undo)
+      // 3. Live rollback / deletion / truncation reset detected
       unsubscribeRefreshed = signalrService.onDashboardRefreshed((data) => {
         if (data?.globalSummary) {
           setSummary({
@@ -339,6 +341,7 @@ export const CentralDashboard: React.FC<CentralDashboardProps> = ({
             availableAssets: data.globalSummary.availableAssets
           })
         }
+        setRealtimeRefreshTick((prev) => prev + 1)
       })
     })
 
